@@ -432,7 +432,7 @@ build_deb () {
     rm -f $DEBS_TARBALL_ROOT*
     exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../source_repository/*.dsc"
     lxc file pull $LXD_CONTAINER$USERDIR/$DEBS_TARBALL .
-    exec_container "rm ../*.deb ../*.changes ../$DEBS_TARBALL"
+    exec_container "rm ../*.deb ../*.changes ../$DEBS_TARBALL ../source_repository/*.dsc"
 }
 
 build_make_install () {
