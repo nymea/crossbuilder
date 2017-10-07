@@ -1,0 +1,13 @@
+Source: crossbuilder
+Section: utils
+Priority: options
+Maintainer: Michael Zanetti <michael.zanetti@guh.io>
+Build-depends: debhelper (>= 0.0.0),
+Standards-Version: 3.9.3
+
+Package: crossbuilder
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: LXD based cross compile environment
+  Cross compile for armhf with ease.

@@ -1,0 +1,13 @@
+crossbuilder (0.1ubuntu9) zesty; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+  * deploy via ssh instead of adb
+  * fix packaging
+  * add crossbuilder stop, needed in jenkins
+  * fix versioning of packages
+  * allow overriding DEB_BUILD_OPTIONS
+  * add support for crossbuilder run
+  * don't fail when there is no deploy config, just warn
+  * allow giving a prefix for the container
+
+ -- Michael Zanetti <michael.zanetti@guh.io>  Wed, 12 Jul 2017 13:32:48 +0200
