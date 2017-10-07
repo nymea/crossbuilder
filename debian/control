@@ -1,6 +1,6 @@
 Source: crossbuilder
-Section: utils
-Priority: options
+Section: devel
+Priority: optional
 Maintainer: Michael Zanetti <michael.zanetti@guh.io>
 Build-depends: debhelper (>= 0.0.0),
 Standards-Version: 3.9.3
