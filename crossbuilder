@@ -349,11 +349,11 @@ get_source_package () {
 }
 
 backup_changelog () {
-    cp debian/changelog /tmp/$PACKAGE-changelog.orig
+    cp debian/changelog /tmp/$LXD_CONTAINER-$PACKAGE-changelog.orig
 }
 
 restore_changelog () {
-    mv /tmp/$PACKAGE-changelog.orig debian/changelog
+    mv /tmp/$LXD_CONTAINER-$PACKAGE-changelog.orig debian/changelog
 }
 
 ensure_upstream_tarball () {
