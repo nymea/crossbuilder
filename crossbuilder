@@ -439,9 +439,9 @@ build_deb () {
     # transfer resulting debian packages to local machine
     echo "${POSITIVE_COLOR}Packing build artifacts in $DEBS_TARBALL.${NC}"
     rm -f $DEBS_TARBALL_ROOT*
-    exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar*"
+    exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar* || tar cf ../$DEBS_TARBALL ../*.deb"
     lxc file pull $LXD_CONTAINER$USERDIR/$DEBS_TARBALL .
-    exec_container "rm ../*.deb ../*.changes ../$DEBS_TARBALL ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar*"
+    exec_container "rm ../*.deb ../*.changes ../$DEBS_TARBALL ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar* || true"
 }
 
 build_make_install () {
@@ -460,11 +460,12 @@ build () {
 
 copy_build_to_container () {
     BUILD_FOLDER=$1
+    PREVIOUS_DEBS_TARBALL=$2
     echo "${POSITIVE_COLOR}Copying and extracting $DEBS_TARBALL from $BUILD_FOLDER into container $LXD_CONTAINER.${NC}"
     exec_container mkdir -p $SOURCE_REPOSITORY
-    lxc file push $BUILD_FOLDER/$DEBS_TARBALL $LXD_CONTAINER$SOURCE_REPOSITORY/
-    exec_container "tar xf $SOURCE_REPOSITORY/$DEBS_TARBALL --directory $SOURCE_REPOSITORY/"
-    exec_container "tar xf $SOURCE_REPOSITORY/$DEBS_TARBALL --directory $USERDIR/"
+    lxc file push $BUILD_FOLDER/$PREVIOUS_DEBS_TARBALL $LXD_CONTAINER$SOURCE_REPOSITORY/
+    exec_container "tar xf $SOURCE_REPOSITORY/$PREVIOUS_DEBS_TARBALL --directory $SOURCE_REPOSITORY/"
+    exec_container "tar xf $SOURCE_REPOSITORY/$PREVIOUS_DEBS_TARBALL --directory $USERDIR/"
 }
 
 clean () {
@@ -940,12 +941,13 @@ else
                     variables
                     new_container
                     if [ -n "$PREVIOUS_BUILD_FOLDER" ] ; then
-                        copy_build_to_container $PREVIOUS_BUILD_FOLDER
+                        copy_build_to_container $PREVIOUS_BUILD_FOLDER $PREVIOUS_DEBS_TARBALL
                         exec_container rm -f $USERDIR/dependencies_installed
                     fi
                     install_dependencies
                     build
                     PREVIOUS_BUILD_FOLDER=$PWD
+                    PREVIOUS_DEBS_TARBALL=$DEBS_TARBALL
                 done
             fi
         ;;
