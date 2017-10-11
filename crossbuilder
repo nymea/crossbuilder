@@ -124,7 +124,7 @@ variables () {
     DEBS_TARBALL_ROOT=debs
     if [ -n "$NEW_BUILD" ] ; then
         if [ $NO_BUMP_CHANGELOG -ne 1 ]; then
-            NEW_PACKAGE_VERSION=$PACKAGE_VERSION"+"`date +%Y%m%d%H%M`
+            NEW_PACKAGE_VERSION=$PACKAGE_VERSION"+"`date +%Y%m%d%H%M`"~$TARGET_UBUNTU"
         else
             NEW_PACKAGE_VERSION=$PACKAGE_VERSION
         fi

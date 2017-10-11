@@ -1,4 +1,4 @@
-crossbuilder (0.1ubuntu9) zesty; urgency=medium
+crossbuilder (0.2) zesty; urgency=medium
 
   * Initial release. (Closes: #XXXXXX)
   * deploy via ssh instead of adb
