@@ -475,7 +475,7 @@ clean () {
 
 check_for_container_network() {
     NETWORK_UP=0
-    for i in `seq 1 10`
+    for i in `seq 1 20`
     do
         if lxc info $LXD_CONTAINER | grep -e "eth0.*inet\b" > /dev/null 2>&1 ; then
             NETWORK_UP=1
