@@ -501,8 +501,8 @@ check_for_dpkg_available() {
         sleep 1
     done
     if [ $DPKG_AVAILABLE -ne 1 ] ; then
-        echo "${ERROR_COLOR}Container dpkg locked. /var/lib/dpkg/lock still exists after one minute. Giving up.${NC}"
-        exit 1
+        echo "${ERROR_COLOR} /var/lib/dpkg/lock still exists after one minute. Assuming it is stale. Deleting it...${NC}"
+        exec_container_root rm /var/lib/dpkg/lock
     fi
 }
 
