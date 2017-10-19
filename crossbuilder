@@ -305,6 +305,11 @@ export CXX=$TARGET_FARCH-g++\n\
     else
         lxc config device set $LXD_CONTAINER current_dir_mount source $MOUNTED_DIRECTORY
     fi
+
+   if ! lxc config device get $LXD_CONTAINER ccache_dir_mount disk 2> /dev/null ; then
+       echo "${POSITIVE_COLOR}Mounting ccache dir ($HOME/.ccache) in container.${NC}"
+       lxc config device add $LXD_CONTAINER ccache_dir_mount disk source=$HOME/.ccache/ path=$HOME/.ccache
+   fi
 }
 
 delete_container () {
