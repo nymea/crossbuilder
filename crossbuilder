@@ -179,7 +179,7 @@ variables () {
     HOST_FARCH=$(dpkg-architecture -f -a$TARGET_ARCH -qDEB_BUILD_MULTIARCH)
     TARGET_FARCH=$(dpkg-architecture -f -a$TARGET_ARCH -qDEB_HOST_MULTIARCH)
     if [ -z "$DEB_BUILD_PROFILES" ]; then
-        DEB_BUILD_PROFILES='cross nocheck nodoc'
+        DEB_BUILD_PROFILES='nocheck nodoc'
     fi
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
 }
@@ -291,12 +291,12 @@ new_container () {
         # FIXME: these should probably be set in the image already
         exec_container_root "printf 'export PKG_CONFIG_PATH=/usr/lib/$TARGET_FARCH/pkgconfig\n\
 export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
-#export CC=$TARGET_FARCH-gcc\n\
-#export CXX=$TARGET_FARCH-g++\n\
+if [ "$TARGET_ARCH" != "i386" ]; then
+  export CC=$TARGET_FARCH-gcc\n\
+  export CXX=$TARGET_FARCH-g++\n\
+fi
 source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 ' >> /etc/profile.d/clickvars.sh"
-        # FIXME: image should have environment variables set from executing:
-        # dpkg-architecture --print-set --target-arch armhf
 
     fi
 
@@ -401,7 +401,7 @@ install_dependencies () {
         exec_container_root add-apt-repository --enable-source \"deb file://$SOURCE_REPOSITORY/ /\"
         exec_container_root "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000' | sudo tee /etc/apt/preferences.d/localrepo.pref"
         exec_container_root apt-get update -o Acquire::AllowInsecureRepositories=true --allow-unauthenticated
-        if ! exec_container_root apt-get build-dep -y --force-yes -o Apt::Build-Profiles=cross,nocheck,nodoc -a$TARGET_ARCH $PACKAGE=$NEW_PACKAGE_VERSION ; then
+        if ! exec_container_root apt-get build-dep -y --force-yes -o Apt::Build-Profiles=nocheck,nodoc -a$TARGET_ARCH $PACKAGE=$NEW_PACKAGE_VERSION ; then
             restore_changelog
             exit 1
         fi
