@@ -293,6 +293,7 @@ new_container () {
 export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
 #export CC=$TARGET_FARCH-gcc\n\
 #export CXX=$TARGET_FARCH-g++\n\
+source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 ' >> /etc/profile.d/clickvars.sh"
         # FIXME: image should have environment variables set from executing:
         # dpkg-architecture --print-set --target-arch armhf
