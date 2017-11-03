@@ -292,7 +292,7 @@ new_container () {
         exec_container_root "printf 'export PKG_CONFIG_PATH=/usr/lib/$TARGET_FARCH/pkgconfig\n\
 export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
 if [ "$TARGET_ARCH" = "i386" ]; then
-  if [ "$TARGET_UBUNTU" = "jessie"]; then
+  if [ "$TARGET_UBUNTU" = "jessie" ]; then
     export CC=i586-linux-gnu-gcc\n\
     export CXX=i586-linux-gnu-g++\n\
   else
