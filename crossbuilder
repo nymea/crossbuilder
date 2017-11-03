@@ -291,12 +291,17 @@ new_container () {
         # FIXME: these should probably be set in the image already
         exec_container_root "printf 'export PKG_CONFIG_PATH=/usr/lib/$TARGET_FARCH/pkgconfig\n\
 export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
-if [ "$TARGET_ARCH" != "i386" ]; then
+if [ "$TARGET_ARCH" = "i386" ]; then
+  if [ "$TARGET_UBUNTU" = "jessie"]; then
+    export CC=i586-linux-gnu-gcc\n\
+    export CXX=i586-linux-gnu-g++\n\
+  else
+    export CC=i686-linux-gnu-gcc\n\
+    export CXX=i686-linux-gnu-g++\n\
+  fi
+else
   export CC=$TARGET_FARCH-gcc\n\
   export CXX=$TARGET_FARCH-g++\n\
-else
-  export CC=i686-linux-gnu-gcc\n\
-  export CXX=i686-linux-gnu-g++\n\
 fi
 source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 ' >> /etc/profile.d/clickvars.sh"
