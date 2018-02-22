@@ -406,7 +406,13 @@ install_dependencies () {
             exec_container "rm -f $USERDIR/$PACKAGE*.*"
         fi
         exec_container $SOURCE_REPOSITORY/$CREATE_REPO_SCRIPT $SOURCE_REPOSITORY
-        exec_container_root add-apt-repository --enable-source \"deb file://$SOURCE_REPOSITORY/ /\"
+
+        # Since bionic, add-apt-repository will automatically call apt-get update which fails on this if -o Acquire::AllowInsecureRepositories=true isn't passed
+        # As a workaround, let's manually echo the repo strings to sources.list instead
+        #exec_container_root add-apt-repository --enable-source \"deb file://$SOURCE_REPOSITORY/ /\"
+        exec_container_root "echo 'deb file://$SOURCE_REPOSITORY/ /' | sudo tee -a /etc/apt/sources.list"
+        exec_container_root "echo 'deb-src file://$SOURCE_REPOSITORY/ /' | sudo tee -a /etc/apt/sources.list"
+
         exec_container_root "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000' | sudo tee /etc/apt/preferences.d/localrepo.pref"
         exec_container_root apt-get update -o Acquire::AllowInsecureRepositories=true --allow-unauthenticated
         if ! exec_container_root apt-get build-dep -y --force-yes -o Apt::Build-Profiles=nocheck,nodoc -a$TARGET_ARCH $PACKAGE=$NEW_PACKAGE_VERSION ; then
