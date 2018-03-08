@@ -69,7 +69,7 @@ display_help () {
     echo "  --packages           - Packages to deploy [by default: all the ones already installed on device]."
     echo "  --architecture | -a  - Architecture to build for [defaults to architecture of connected device, if none then armhf]."
     echo "  --ubuntu | -u        - Version of Ubuntu to build for [defaults to version of connected device, if none then 16.04]."
-    echo "  --lxd-image          - LXD image to use [defaults to the ones provided by jenkins.guh.io (example: guh-builder-xenial-amd64-armhf)."
+    echo "  --lxd-image          - LXD image to use [defaults to the ones provided by jenkins.nymea.io (example: nymea-builder-xenial-amd64-armhf)."
     echo "  --container-prefix   - LXD container prefix to use"
     echo "  --password           - User password of the device to deploy to [defaults to 0000]."
     echo "  --no-deb             - Do not build Debian packages and uses rsync to deploy the build artifacts."
@@ -267,7 +267,7 @@ new_container () {
         lxc start $LXD_CONTAINER || true
     else
         echo "${POSITIVE_COLOR}Creating LXD container $LXD_CONTAINER using $LXD_IMAGE.${NC}"
-        lxc remote --public=true --accept-certificate=true add guh https://jenkins.guh.io || true
+        lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
 #        lxc remote --protocol=simplestreams --public=true --accept-certificate=true add sdk https://sdk-images.canonical.com || true
         lxc init $LXD_IMAGE $LXD_CONTAINER
         if [ -n "$ENCRYPTED_HOME" ] ; then
@@ -707,7 +707,7 @@ TARGET_ARCH=amd64
 TARGET_UBUNTU=xenial
 NO_BUMP_CHANGELOG=0
 
-DEVICE_PASSWORD=guh # Will be set by variables() if overridden in .crossbuilder/deploy.conf
+DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
 # Load run configuration cache (will load TARGET_ARCH and TARGET_UBUNTU)
 CACHE_CONF=.crossbuilder/cache.conf
@@ -790,7 +790,7 @@ if [ $? -ne 0 ]; then echo "TARGET_UBUNTU=$TARGET_UBUNTU" >> $CACHE_CONF; else s
 set -e
 
 if [ -z "$LXD_IMAGE" ] ; then
-    LXD_IMAGE=guh:guh-builder-$TARGET_UBUNTU-$HOST_ARCH-$TARGET_ARCH
+    LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH-$TARGET_ARCH
 fi
 
 COMMAND=$1
