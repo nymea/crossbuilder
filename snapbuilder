@@ -46,6 +46,7 @@ variables () {
     USERDIR=/home/$USERNAME
     MOUNT_POINT=$USERDIR/$PACKAGE
     SOURCE_PATH_CONTAINER=$MOUNT_POINT
+    MOUNT_SSH=0
 }
 
 
@@ -87,10 +88,17 @@ new_container () {
         lxc config device set $LXD_CONTAINER current_dir_mount source $MOUNTED_DIRECTORY
     fi
 
-   if ! lxc config device get $LXD_CONTAINER ccache_dir_mount disk 2> /dev/null ; then
-       echo "${POSITIVE_COLOR}Mounting ccache dir ($HOME/.ccache) in container.${NC}"
-       lxc config device add $LXD_CONTAINER ccache_dir_mount disk source=$HOME/.ccache/ path=$HOME/.ccache
-   fi
+    if ! lxc config device get $LXD_CONTAINER ccache_dir_mount disk 2> /dev/null ; then
+        echo "${POSITIVE_COLOR}Mounting ccache dir ($HOME/.ccache) in container.${NC}"
+        lxc config device add $LXD_CONTAINER ccache_dir_mount disk source=$HOME/.ccache/ path=$HOME/.ccache
+    fi
+    
+    if [ $MOUNT_SSH -eq 1 ]; then
+        if ! lxc config device get $LXD_CONTAINER ssh_dir_mount disk 2> /dev/null ; then
+            echo "${POSITIVE_COLOR}Mounting ssh config dir ($HOME/.ssh) in container.${NC}"
+            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
+        fi
+    fi
 }
 
 delete_container () {
@@ -158,13 +166,52 @@ check_for_container_network() {
 }
 
 build () {
-    exec_container pwd
-    exec_container ls
     exec_container snapcraft
-    #lxc file pull $LXD_CONTAINER${USERDIR}/${PACKAGE}/${PACKAGE}_${VERSION}_${HOST_ARCH}.snap .
 }
 
 variables
+
+while [ "$1" != "" ]; do
+    OPTION=`echo $1 | awk -F= '{print $1}'`
+    VALUE=`echo $1 | awk -F= '{print $2}'`
+    case $1 in
+        -*)
+            case $OPTION in
+#            --ubuntu)
+#                TARGET_UBUNTU=$VALUE
+#            ;;
+#            -u)
+#                shift;
+#                TARGET_UBUNTU=$1
+#            ;;
+#            --lxd-image)
+#                LXD_IMAGE=$VALUE
+#            ;;
+            --mount-ssh)
+                MOUNT_SSH=1
+            ;;
+            --container-prefix)
+                CONTAINER_PREFIX=$VALUE
+            ;;
+            --help)
+                display_help
+                exit 0
+            ;;
+            *)
+                display_help
+                echo ""
+                echo "${ERROR_COLOR}error: unknown option: $OPTION${NC}"
+                exit 1
+            ;;
+            esac
+            shift
+        ;;
+        *)
+            break
+        ;;
+    esac
+done
+
 
 COMMAND=$1
 if [ -n "$COMMAND" ] ; then
