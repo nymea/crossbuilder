@@ -16,8 +16,8 @@ variables () {
         echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
         exit 1
     fi
-    PACKAGE=`cat snapcraft.yaml | grep name | cut -d " " -f 2`
-    VERSION=`cat snapcraft.yaml | grep version | cut -d " " -f 2`
+    PACKAGE=`cat snapcraft.yaml | grep name | head -n 1 | cut -d " " -f 2`
+    VERSION=`cat snapcraft.yaml | grep version | head -n 1 | cut -d " " -f 2`
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     LIGHT_RED='\033[1;31m'
