@@ -11,3 +11,10 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
 Description: LXD based cross compile environment
   Cross compile for armhf with ease.
+
+Package: snapbuilder
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: LXD based snapcraft wrapper
+  Build snaps with different ppas with ease.
