@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 PROGRAM_NAME=`basename $0`
 
@@ -105,8 +105,10 @@ shell_container () {
 
 enable_overlay_source () {
     exec_container_root apt-key adv --keyserver keyserver.ubuntu.com --recv-key A1A19ED6
-    exec_container_root apt-add-repository \"deb http://repository.nymea.io xenial main\"
-    exec_container_root cat /etc/apt/sources.list
+#    exec_container_root apt-add-repository \"deb http://repository.nymea.io xenial main\"
+    exec_container_root "echo deb http://repository.nymea.io xenial main > /etc/apt/sources.list.d/nymea.list"
+#    exec_container_root cat /etc/apt/sources.list
+    exec_container_root cat /etc/apt/sources.list.d/nymea.list
 }
 
 check_command_parameter_count () {
