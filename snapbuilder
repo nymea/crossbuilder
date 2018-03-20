@@ -60,7 +60,7 @@ new_container () {
         echo "${POSITIVE_COLOR}Creating LXD container $LXD_CONTAINER using $LXD_IMAGE.${NC}"
         lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
 #        lxc remote --protocol=simplestreams --public=true --accept-certificate=true add sdk https://sdk-images.canonical.com || true
-        lxc init $LXD_IMAGE $LXD_CONTAINER
+        lxc init $LXD_IMAGE $LXD_CONTAINER -c security.nesting=true -c security.privileged=true
         if [ -n "$ENCRYPTED_HOME" ] ; then
             lxc config set $LXD_CONTAINER security.privileged true
         else
