@@ -9,6 +9,7 @@ display_help () {
     echo "    help            - Display this help."
     echo "    delete          - Delete a container."
     echo "    shell           - Enter a container."
+    echo "    clean           - Clean the snap build dir."
 }
 
 variables () {
@@ -16,6 +17,7 @@ variables () {
         echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
         exit 1
     fi
+    DISTRO=xenial
     PACKAGE=`cat snapcraft.yaml | grep name | head -n 1 | cut -d " " -f 2`
     VERSION=`cat snapcraft.yaml | grep version | head -n 1 | cut -d " " -f 2`
     RED='\033[0;31m'
@@ -27,7 +29,7 @@ variables () {
     POSITIVE_COLOR=$GREEN
 
     HOST_ARCH=`dpkg --print-architecture`
-    LXD_IMAGE_NAME=nymea-snap-builder-xenial-$HOST_ARCH
+    LXD_IMAGE_NAME=nymea-snap-builder-$DISTRO-$HOST_ARCH
     LXD_IMAGE=nymea:$LXD_IMAGE_NAME
     LXD_CONTAINER=builder-$CONTAINER_PREFIX$PACKAGE-$LXD_IMAGE_NAME
     if stat --file-system $HOME | grep ecrypt ; then
@@ -36,14 +38,14 @@ variables () {
     USERNAME=`id --user --name`
     GROUPNAME=$USERNAME
 #    if [ -n "$ENCRYPTED_HOME" ] ; then
-#        USERID=`id --user`
-#        GROUPID=`id --group`
+        USERID=`id --user`
+        GROUPID=`id --group`
 #    else
-        USERID=150000
-        GROUPID=150000
+#        USERID=150000
+#        GROUPID=150000
 #    fi
     MOUNTED_DIRECTORY=$PWD
-    USERDIR=/home/$USERNAME
+    USERDIR=~
     MOUNT_POINT=$USERDIR/$PACKAGE
     SOURCE_PATH_CONTAINER=$MOUNT_POINT
     MOUNT_SSH=0
@@ -63,20 +65,21 @@ new_container () {
         lxc init $LXD_IMAGE $LXD_CONTAINER
         lxc config set $LXD_CONTAINER security.nesting true
         lxc config set $LXD_CONTAINER security.privileged true
-#        if [ -n "$ENCRYPTED_HOME" ] ; then
-#            lxc config set $LXD_CONTAINER security.privileged true
-#         else
-#            printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u #$USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
-#         fi
+
         lxc start $LXD_CONTAINER
+        USERNAME_CONTAINER=`lxc exec $LXD_CONTAINER grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser $USERNAME_CONTAINER
+        #lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- delgroup $USERNAME_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
-        lxc exec --env USERNAME=$USERNAME $LXD_CONTAINER -- usermod -aG sudo $USERNAME
+#        lxc exec --env USERNAME=$USERNAME $LXD_CONTAINER -- usermod -aG sudo $USERNAME
         exec_container_root "sed -i 's/ENV_PATH.*PATH=/ENV_PATH\tPATH=\/usr\/lib\/ccache:/' /etc/login.defs"
         # wait for the container's network connection
         check_for_container_network
         enable_overlay_source
+        exec_container_root rm /var/lib/dpkg/lock
         exec_container_root apt update
+        exec_container_root rm /var/lib/dpkg/lock || true
         exec_container_root apt install -y sudo debhelper ccache software-properties-common devscripts snapcraft
         exec_container_root adduser $USERNAME sudo
         # set empty password for the user
@@ -98,8 +101,7 @@ new_container () {
     if [ $MOUNT_SSH -eq 1 ]; then
         if ! lxc config device get $LXD_CONTAINER ssh_dir_mount disk 2> /dev/null ; then
             echo "${POSITIVE_COLOR}Mounting ssh config dir ($HOME/.ssh) in container.${NC}"
-#            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
-            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=/root/.ssh
+            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
         fi
     fi
 }
@@ -116,8 +118,8 @@ shell_container () {
 
 enable_overlay_source () {
     exec_container_root apt-key adv --keyserver keyserver.ubuntu.com --recv-key A1A19ED6
-#    exec_container_root apt-add-repository \"deb http://repository.nymea.io xenial main\"
-    exec_container_root "echo deb http://repository.nymea.io xenial main > /etc/apt/sources.list.d/nymea.list"
+#    exec_container_root apt-add-repository \"deb http://repository.nymea.io $DISTRO main\"
+    exec_container_root "echo deb http://repository.nymea.io $DISTRO main > /etc/apt/sources.list.d/nymea.list"
 #    exec_container_root cat /etc/apt/sources.list
     exec_container_root cat /etc/apt/sources.list.d/nymea.list
 }
@@ -169,7 +171,12 @@ check_for_container_network() {
 }
 
 build () {
-    exec_container_root snapcraft
+    exec_container_root rm /var/lib/dpkg/lock || true
+    exec_container snapcraft
+}
+
+clean () {
+    exec_container snapcraft clean $@
 }
 
 variables
@@ -226,7 +233,7 @@ if [ "$COMMAND" = "help" ] ; then
     exit 0
 fi
 if [ -z "$COMMAND" ] ; then
-    new_container    
+    new_container
     build
 else
     PARAMETERS=$@
@@ -243,6 +250,10 @@ else
         build)
             new_container
             build
+        ;;
+        clean)
+            new_container
+            clean $@
         ;;
         *)
             display_help
