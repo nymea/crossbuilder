@@ -10,6 +10,9 @@ display_help () {
     echo "    delete          - Delete a container."
     echo "    shell           - Enter a container."
     echo "    clean           - Clean the snap build dir."
+    echo "Options:"
+    echo "    --mount-ssh     - Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
+    echo "    --silo, -s      - Add ci-repo.nymea.io/... to the apt sources"
 }
 
 variables () {
@@ -120,8 +123,12 @@ enable_overlay_source () {
     exec_container_root apt-key adv --keyserver keyserver.ubuntu.com --recv-key A1A19ED6
 #    exec_container_root apt-add-repository \"deb http://repository.nymea.io $DISTRO main\"
     exec_container_root "echo deb http://repository.nymea.io $DISTRO main > /etc/apt/sources.list.d/nymea.list"
+    if [ "$SILO_NAME" != "" ]; then
+        exec_container_root "echo deb http://ci-repo.nymea.io/$SILO_NAME $DISTRO main > /etc/apt/sources.list.d/nymea-silo.list"
+    fi
 #    exec_container_root cat /etc/apt/sources.list
     exec_container_root cat /etc/apt/sources.list.d/nymea.list
+    exec_container_root cat /etc/apt/sources.list.d/nymea-silo.list
 }
 
 check_command_parameter_count () {
@@ -202,6 +209,13 @@ while [ "$1" != "" ]; do
             ;;
             --container-prefix)
                 CONTAINER_PREFIX=$VALUE
+            ;;
+            --silo)
+                SILO_NAME=$VALUE
+            ;;
+            -s)
+                shift;
+                SILO_NAME=$1
             ;;
             --help)
                 display_help
