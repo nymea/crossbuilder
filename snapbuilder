@@ -98,7 +98,8 @@ new_container () {
     if [ $MOUNT_SSH -eq 1 ]; then
         if ! lxc config device get $LXD_CONTAINER ssh_dir_mount disk 2> /dev/null ; then
             echo "${POSITIVE_COLOR}Mounting ssh config dir ($HOME/.ssh) in container.${NC}"
-            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
+#            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
+            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=/root/.ssh
         fi
     fi
 }
@@ -142,13 +143,13 @@ check_command_parameter_count () {
 exec_container_root () {
     command="$@"
     #echo lxc exec $LXD_CONTAINER "$@"
-    lxc exec $LXD_CONTAINER -- sh -c "cd $SOURCE_PATH_CONTAINER; $command"
+    lxc exec $LXD_CONTAINER -- sh -c "cd $SOURCE_PATH_CONTAINER; QT_SELECT=\"qt5\" $command"
 }
 
 exec_container () {
     command="$@"
     #echo lxc exec $LXD_CONTAINER "$@"
-    lxc exec $LXD_CONTAINER -- su -l -c "cd $SOURCE_PATH_CONTAINER; $command" $USERNAME
+    lxc exec $LXD_CONTAINER -- su -l -c "cd $SOURCE_PATH_CONTAINER; QT_SELECT=\"qt5\" $command" $USERNAME
 }
 
 check_for_container_network() {
