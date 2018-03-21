@@ -35,13 +35,13 @@ variables () {
     fi
     USERNAME=`id --user --name`
     GROUPNAME=$USERNAME
-    if [ -n "$ENCRYPTED_HOME" ] ; then
-        USERID=`id --user`
-        GROUPID=`id --group`
-    else
+#    if [ -n "$ENCRYPTED_HOME" ] ; then
+#        USERID=`id --user`
+#        GROUPID=`id --group`
+#    else
         USERID=150000
         GROUPID=150000
-    fi
+#    fi
     MOUNTED_DIRECTORY=$PWD
     USERDIR=/home/$USERNAME
     MOUNT_POINT=$USERDIR/$PACKAGE
@@ -65,9 +65,9 @@ new_container () {
         lxc config set $LXD_CONTAINER security.privileged true
 #        if [ -n "$ENCRYPTED_HOME" ] ; then
 #            lxc config set $LXD_CONTAINER security.privileged true
-#        else
-#            printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
-#        fi
+#         else
+#            printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u #$USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+#         fi
         lxc start $LXD_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
@@ -142,7 +142,7 @@ check_command_parameter_count () {
 exec_container_root () {
     command="$@"
     #echo lxc exec $LXD_CONTAINER "$@"
-    lxc exec $LXD_CONTAINER -- sh -c "$command"
+    lxc exec $LXD_CONTAINER -- sh -c "cd $SOURCE_PATH_CONTAINER; $command"
 }
 
 exec_container () {
@@ -168,7 +168,7 @@ check_for_container_network() {
 }
 
 build () {
-    exec_container snapcraft
+    exec_container_root snapcraft
 }
 
 variables
