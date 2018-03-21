@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 PROGRAM_NAME=`basename $0`
 
@@ -60,12 +60,14 @@ new_container () {
         echo "${POSITIVE_COLOR}Creating LXD container $LXD_CONTAINER using $LXD_IMAGE.${NC}"
         lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
 #        lxc remote --protocol=simplestreams --public=true --accept-certificate=true add sdk https://sdk-images.canonical.com || true
-        lxc init $LXD_IMAGE $LXD_CONTAINER -c security.nesting=true -c security.privileged=true
-        if [ -n "$ENCRYPTED_HOME" ] ; then
-            lxc config set $LXD_CONTAINER security.privileged true
-        else
-            printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
-        fi
+        lxc init $LXD_IMAGE $LXD_CONTAINER
+        lxc config set $LXD_CONTAINER security.nesting true
+        lxc config set $LXD_CONTAINER security.privileged true
+#        if [ -n "$ENCRYPTED_HOME" ] ; then
+#            lxc config set $LXD_CONTAINER security.privileged true
+#        else
+#            printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+#        fi
         lxc start $LXD_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
