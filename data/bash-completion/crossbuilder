@@ -1,0 +1,13 @@
+# crossbuilder(1) completion                                       -*- shell-script -*-
+
+_crossbuilder() 
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="help setup-lxd new delete shell source dependencies build clean deploy stop run --packages --architecture -a --ubuntu -u --lxd-image --container-prefix --password --no-deb --deploy-path --no-changelog -c"
+
+    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+}
+complete -F _crossbuilder crossbuilder

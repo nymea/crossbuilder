@@ -1,2 +1,4 @@
 crossbuilder /usr/bin/
 create_repository.sh /usr/bin/
+data/bash-completion/crossbuilder usr/share/bash-completion/completions/
+

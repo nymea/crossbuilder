@@ -1,1 +1,3 @@
 snapbuilder /usr/bin/
+data/bash-completion/snapbuilder usr/share/bash-completion/completions/
+
