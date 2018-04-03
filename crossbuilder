@@ -514,7 +514,8 @@ check_for_dpkg_available() {
     DPKG_AVAILABLE=0
     for i in `seq 1 60`
     do
-        if exec_container test ! -e /var/lib/dpkg/lock; then
+        echo "${ERROR_COLOR} /var/lib/dpkg/lock exists... Waiting for it to disappear...${NC}"
+        if exec_container_root test ! -e /var/lib/dpkg/lock; then
             DPKG_AVAILABLE=1
             break
         fi
