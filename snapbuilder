@@ -11,6 +11,7 @@ display_help () {
     echo "    shell           - Enter a container."
     echo "    clean           - Clean the snap build dir."
     echo "Options:"
+    echo "    --help, -h      - Display this help."
     echo "    --mount-ssh     - Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
     echo "    --silo, -s      - Add ci-repo.nymea.io/... to the apt sources"
 }
@@ -186,8 +187,6 @@ clean () {
     exec_container snapcraft clean $@
 }
 
-variables
-
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
     VALUE=`echo $1 | awk -F= '{print $2}'`
@@ -217,7 +216,7 @@ while [ "$1" != "" ]; do
                 shift;
                 SILO_NAME=$1
             ;;
-            --help)
+            --help | -h | help )
                 display_help
                 exit 0
             ;;
@@ -236,6 +235,7 @@ while [ "$1" != "" ]; do
     esac
 done
 
+variables
 
 COMMAND=$1
 if [ -n "$COMMAND" ] ; then

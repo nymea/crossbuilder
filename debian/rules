@@ -1,4 +1,8 @@
 #!/usr/bin/make -f
 
+override_dh_install:
+	dh_install --fail-missing
+	cp -a $(CURDIR)/data/bash-completion/* $(CURDIR)/debian/crossbuilder/usr/share/bash-completion/completions/ || true
+
 %:
 	dh $@
