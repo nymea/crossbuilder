@@ -1,0 +1,3 @@
+imagebuilder /usr/bin/
+data/bash-completion/imagebuilder usr/share/bash-completion/completions/
+

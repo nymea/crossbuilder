@@ -1,0 +1,13 @@
+# imagebuilder(1) completion                                       -*- shell-script -*-
+
+_imagebuilder() 
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="stop start delete shell clean --help -h -s --script -d --directory -n --no-colors"
+
+    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+}
+complete -F _imagebuilder imagebuilder
