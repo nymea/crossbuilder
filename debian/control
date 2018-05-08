@@ -18,3 +18,10 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
 Description: LXD based snapcraft wrapper
   Build snaps with different ppas with ease.
+
+Package: imagebuilder
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: LXD based system image builder
+  Build system images inside a lxd container.
