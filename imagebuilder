@@ -156,7 +156,11 @@ mountBuildDirectory() {
 
 #------------------------------------------------------------------------------------------
 buildImage() {
-    lxc exec ${IMAGENAME} -- su -c "cd ${WORKDIR} && ./${BUILDSCRIPT}"
+    if ${COLORS}; then
+        lxc exec ${IMAGENAME} -- su -c "cd ${WORKDIR} && ./${BUILDSCRIPT}"
+    else
+        lxc exec ${IMAGENAME} -- su -c "cd ${WORKDIR} && ./${BUILDSCRIPT} -n"
+    fi
 }
 
 #------------------------------------------------------------------------------------------
@@ -178,21 +182,64 @@ execContainer() {
     lxc exec ${IMAGENAME} -- su -c "cd ${WORKDIR}; $command"
 }
 
+initEnv() {
+    # Load config if there is any
+    CONFIGDIR=${BUILDDIR}/.imagebuilder
+    CONFIG=${CONFIGDIR}/config
+    if [ -e ${CONFIG} ]; then
+        . ${CONFIG}
+    else
+        # Create the config
+        if [ ! -d ${CONFIGDIR} ]; then mkdir ${CONFIGDIR}; fi
+        if [ ! -e ${CONFIG} ]; then touch ${CONFIG}; fi
+    fi
+
+    # Load build script
+    grep BUILDSCRIPT ${CONFIG} > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        if [ -z $BUILDSCRIPT ]; then printRed "No build script specified. Please pass the script name with \"-s\"." && exit 1; fi
+        echo "BUILDSCRIPT=$BUILDSCRIPT" >> $CONFIG
+    else
+        #printGreen "Configure build script ${BUILDSCRIPT}"
+        sed -i "/BUILDSCRIPT=*/c\BUILDSCRIPT=${BUILDSCRIPT}" ${CONFIG}
+    fi
+
+    # Check if the build script exists
+    if [ ! -f ${BUILDDIR}/${BUILDSCRIPT} ]; then
+        printRed "Could not find ${BUILDDIR}/${BUILDSCRIPT}. Please specify the script name with \"-s\""
+        exit 1
+    fi
+
+    IMAGENAME=${BUILDSCRIPT}-nymea-image-builder-xenial-amd64
+
+    # Load build directory
+    grep BUILDDIR ${CONFIG} > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        # Build dir not configured yet, save the current directory
+        echo "BUILDDIR=$BUILDDIR" >> $CONFIG
+    else
+        sed -i "/BUILDDIR=/c\BUILDDIR=${BUILDDIR}" ${CONFIG}
+    fi
+
+    WORKDIR=/root/$(basename ${BUILDDIR})
+}
+
 printInfo() {
-    printGreen "--------------------------------------------------------"
+    printOrange "====================================================================================="
     printGreen "Current directory: ${BUILDDIR}"
     printGreen "Build script: ${BUILDSCRIPT}"
     printGreen "Config directory: ${CONFIGDIR}"
     printGreen "Config file: ${CONFIG}"
     printGreen "Config file: ${CONFIG}"
-    printGreen "--------------------------------------------------------"
+    printOrange "====================================================================================="
     printGreen "Image name: ${IMAGENAME}"
     printGreen "Build directory: ${BUILDDIR}"
     printGreen "Working directory in container: ${WORKDIR}"
-
     lxc list | grep ${IMAGENAME}
+    printOrange "====================================================================================="
 
 }
+
 
 
 #------------------------------------------------------------------------------------------
@@ -202,24 +249,22 @@ printInfo() {
 BUILDDIR="$(pwd)"
 BUILDSCRIPT=""
 
-CLEAN=false
-INFO=false
-DELETE=false
+COLORS=true
 
 while [ "$1" != "" ]; do
     case $1 in
         shell )
-            enterShell; exit 0;;
+            initEnv && enterShell; exit 0;;
         clean )
-            CLEAN=true;;
+            initEnv && runCleanCommand; exit 0;;
         start )
-            startContainer; exit 0;;
+            initEnv && startContainer; exit 0;;
         stop )
-            stopContainer; exit 0;;
+            initEnv && stopContainer; exit 0;;
         delete )
-            DELETE=true;;
+            initEnv && deleteContainer; exit 0;;
         info )
-            INFO=true;;
+            initEnv && printInfo; exit 0;;
         help )
             usage && exit 0;;
         -s | --script )
@@ -238,57 +283,8 @@ while [ "$1" != "" ]; do
     shift
 done
 
-# Load config if there is any
-CONFIGDIR=${BUILDDIR}/.imagebuilder
-CONFIG=${CONFIGDIR}/config
-if [ -e ${CONFIG} ]; then
-    . ${CONFIG}
-else
-    # Create the config
-    if [ ! -d ${CONFIGDIR} ]; then mkdir ${CONFIGDIR}; fi
-    if [ ! -e ${CONFIG} ]; then touch ${CONFIG}; fi
-fi
-
-# Load build script
-grep BUILDSCRIPT ${CONFIG} > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    if [ -z $BUILDSCRIPT ]; then printRed "No build script specified. Please pass the script name with \"-s\"." && exit 1; fi
-    echo "BUILDSCRIPT=$BUILDSCRIPT" >> $CONFIG
-else
-    printGreen "Configure build script ${BUILDSCRIPT}"
-    sed -i "/BUILDSCRIPT=*/c\BUILDSCRIPT=${BUILDSCRIPT}" ${CONFIG}
-fi
-
-# Check if the build script exists
-if [ ! -f ${BUILDDIR}/${BUILDSCRIPT} ]; then
-    printRed "Could not find ${BUILDDIR}/${BUILDSCRIPT}. Please specify the script name with \"-s\""
-    exit 1
-fi
-
-IMAGENAME=${BUILDSCRIPT}-nymea-image-builder-xenial-amd64
-
-# Load build directory
-grep BUILDDIR ${CONFIG} > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    # Build dir not configured yet, save the current directory
-    echo "BUILDDIR=$BUILDDIR" >> $CONFIG
-else
-    sed -i "/BUILDDIR=/c\BUILDDIR=${BUILDDIR}" ${CONFIG}
-fi
-
-WORKDIR=/root/$(basename ${BUILDDIR})
-
-printGreen "Build directory: ${BUILDDIR}"
-printGreen "Build script: ${BUILDSCRIPT}"
-printGreen "Working directory in container: ${WORKDIR}"
-
-if ${INFO}; then printInfo && exit 0; fi
-if ${CLEAN}; then runCleanCommand && exit 0; fi
-if ${DELETE}; then deleteContainer && exit 0; fi
-
-# Create the container
+initEnv
 createContainer
-
-# Run the image build script in the directory
+printInfo
 buildImage
 
