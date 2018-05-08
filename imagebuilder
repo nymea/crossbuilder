@@ -1,7 +1,5 @@
 #!/bin/bash
 
-IMAGENAME=nymea-image-builder-xenial-amd64
-
 #------------------------------------------------------------------------------------------
 function usage() {
   cat <<EOF
@@ -9,6 +7,7 @@ Usage: $(basename $0) [OPTIONS]
 
 OPTIONS:
   shell                   Log into shell from builder container
+  info                    Print information about the current build environment
   clean                   Run the clean command of the build script
   stop                    Stop the builder container
   start                   Start the builder container
@@ -74,7 +73,7 @@ waitContainerNetwork() {
 
 #------------------------------------------------------------------------------------------
 containerRunning() {
-    lxc list | grep nymea-image-builder-xenial-amd64 | grep RUNNING > /dev/null 2>&1
+    lxc list | grep ${IMAGENAME} | grep RUNNING > /dev/null 2>&1
     return $?
 }
 
@@ -179,6 +178,23 @@ execContainer() {
     lxc exec ${IMAGENAME} -- su -c "cd ${WORKDIR}; $command"
 }
 
+printInfo() {
+    printGreen "--------------------------------------------------------"
+    printGreen "Current directory: ${BUILDDIR}"
+    printGreen "Build script: ${BUILDSCRIPT}"
+    printGreen "Config directory: ${CONFIGDIR}"
+    printGreen "Config file: ${CONFIG}"
+    printGreen "Config file: ${CONFIG}"
+    printGreen "--------------------------------------------------------"
+    printGreen "Image name: ${IMAGENAME}"
+    printGreen "Build directory: ${BUILDDIR}"
+    printGreen "Working directory in container: ${WORKDIR}"
+
+    lxc list | grep ${IMAGENAME}
+
+}
+
+
 #------------------------------------------------------------------------------------------
 # Main
 #------------------------------------------------------------------------------------------
@@ -187,6 +203,8 @@ BUILDDIR="$(pwd)"
 BUILDSCRIPT=""
 
 CLEAN=false
+INFO=false
+DELETE=false
 
 while [ "$1" != "" ]; do
     case $1 in
@@ -199,7 +217,9 @@ while [ "$1" != "" ]; do
         stop )
             stopContainer; exit 0;;
         delete )
-            deleteContainer; exit 0;;
+            DELETE=true;;
+        info )
+            INFO=true;;
         help )
             usage && exit 0;;
         -s | --script )
@@ -239,6 +259,13 @@ else
     sed -i "/BUILDSCRIPT=*/c\BUILDSCRIPT=${BUILDSCRIPT}" ${CONFIG}
 fi
 
+# Check if the build script exists
+if [ ! -f ${BUILDDIR}/${BUILDSCRIPT} ]; then
+    printRed "Could not find ${BUILDDIR}/${BUILDSCRIPT}. Please specify the script name with \"-s\""
+    exit 1
+fi
+
+IMAGENAME=${BUILDSCRIPT}-nymea-image-builder-xenial-amd64
 
 # Load build directory
 grep BUILDDIR ${CONFIG} > /dev/null 2>&1
@@ -249,21 +276,18 @@ else
     sed -i "/BUILDDIR=/c\BUILDDIR=${BUILDDIR}" ${CONFIG}
 fi
 
-# Check if the build script exists
-if [ ! -f ${BUILDDIR}/${BUILDSCRIPT} ]; then
-    printRed "Could not find ${BUILDDIR}/${BUILDSCRIPT}. Please specify the script name with \"-s\""
-    exit 1
-fi
-
 WORKDIR=/root/$(basename ${BUILDDIR})
 
 printGreen "Build directory: ${BUILDDIR}"
 printGreen "Build script: ${BUILDSCRIPT}"
 printGreen "Working directory in container: ${WORKDIR}"
 
-createContainer
-
+if ${INFO}; then printInfo && exit 0; fi
 if ${CLEAN}; then runCleanCommand && exit 0; fi
+if ${DELETE}; then deleteContainer && exit 0; fi
+
+# Create the container
+createContainer
 
 # Run the image build script in the directory
 buildImage
