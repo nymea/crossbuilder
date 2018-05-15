@@ -25,3 +25,10 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
 Description: LXD based system image builder
   Build system images inside a lxd container.
+
+Package: apkbuilder
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: LXD based apk package builder for Qt projects
+  Build Qt Projects for android
