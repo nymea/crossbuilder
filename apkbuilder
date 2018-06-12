@@ -71,6 +71,7 @@ new_container() {
 
     if ! lxc config device get $LXD_CONTAINER gradle_cache_dir_mount disk 2> /dev/null ; then
         echo "${POSITIVE_COLOR}Mounting gradle cache dir ($HOME/.gradle) in container.${NC}"
+        if [ ! -d $HOME/.gradle ]; then mkdir $HOME/.gradle; fi
         lxc config device add $LXD_CONTAINER gradle_cache_dir_mount disk source=$HOME/.gradle/ path=$HOME/.gradle
     fi
 
