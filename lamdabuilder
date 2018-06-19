@@ -99,7 +99,6 @@ createContainer() {
 
     lxc init ${IMAGENAME} ${CONTAINERNAME}
     lxc config set ${CONTAINERNAME} security.privileged true
-    #printf "lxc.id_map = g ${GROUPID} `id --group` 1\nlxc.id_map = u ${USERID} `id --user` 1" | lxc config set ${CONTAINERNAME} raw.lxc -
 
     # Start container
     startContainer
@@ -146,7 +145,9 @@ createContainer() {
 #------------------------------------------------------------------------------------------
 installNode() {
     if  execContainerRoot ls /usr/local/node-$1-linux-x64  > /dev/null 2>&1; then
+        printGreen "node version $1 already installed."
         createNodeLinks
+        printBuildVersions
         return 0
     fi
 
@@ -167,6 +168,15 @@ installNode() {
     execContainerRoot npm i -g serverless
 
     createNodeLinks
+    printBuildVersions
+}
+
+#------------------------------------------------------------------------------------------
+printBuildVersions() {
+    echo "Node version: $(execContainerRoot node --version)"
+    echo "npm version: $(execContainerRoot npm --version)"
+    echo "serverless version: $(execContainerRoot serverless --version)"
+    execContainerRoot aws --version
 }
 
 #------------------------------------------------------------------------------------------
@@ -232,7 +242,6 @@ createNodeLinks() {
     execContainerRoot ln -s /usr/local/node-${NODE_VERSION}-linux-x64 /usr/local/node
     execContainerRoot ln -s /usr/local/node/bin/node /usr/local/bin/node
     execContainerRoot ln -s /usr/local/node/bin/npm /usr/local/bin/npm
-
     execContainerRoot ln -s /usr/local/node/bin/serverless /usr/local/bin/serverless || true
 }
 
@@ -275,8 +284,8 @@ enterShell() {
 
 #------------------------------------------------------------------------------------------
 runCleanCommand() {
-    printGreen "Clean node modules"
-    execContainer rm -rfv node_modules/
+    printGreen "Clean node_modules directory..."
+    execContainer rm -rf node_modules/
 }
 
 #------------------------------------------------------------------------------------------
@@ -296,6 +305,7 @@ execContainer() {
 #------------------------------------------------------------------------------------------
 build() {
     installNode ${NODE_VERSION}
+    execContainer npm config set color ${COLORS}
 
     printGreen "Building using node $(execContainer node --version) | npm install"
     execContainer npm install
@@ -304,8 +314,8 @@ build() {
 #------------------------------------------------------------------------------------------
 testLocal() {
     printGreen "Run local tests..."
-    execContainer 'echo $TESTDATA'
-    execContainer "node --version && npm test"
+    execContainer npm config set color ${COLORS}
+    execContainer npm test
 }
 
 #------------------------------------------------------------------------------------------
@@ -328,10 +338,10 @@ initEnv() {
     BUILDDIR=$(pwd)
     USERDIR=/home/${USERNAME}
     BUILDDIR_MOUNT=${USERDIR}/${PROJECTNAME}
-    AWS_SECRETS="/home/${USERNAME}/.aws/"
-    AWS_TESTDATA="/home/${USERNAME}/.test-data/"
-    AWS_SECRETS_MOUNT="/home/${USERNAME}/.aws/"
-    AWS_TESTDATA_MOUNT="/home/${USERNAME}/.test-data/"
+    AWS_SECRETS="/home/${USERNAME}/.aws"
+    AWS_TESTDATA="/home/${USERNAME}/.test-data"
+    AWS_SECRETS_MOUNT="/home/${USERNAME}/.aws"
+    AWS_TESTDATA_MOUNT="/home/${USERNAME}/.test-data"
 
     # FIXME: nymea:nymea-aws-lamda-builder
     IMAGENAME=nymea-aws-lamda-builder
@@ -357,7 +367,6 @@ loadConfiguration() {
         . ${CONFIG}
     else
         # Save default configuration
-        printGreen "Create default configuration ${CONFIG}"
         saveConfiguration
     fi
 }
@@ -373,9 +382,9 @@ saveConfiguration() {
     echo "NODE_VERSION=${NODE_VERSION}" >> ${CONFIG}
     echo "AWS_SECRETS=${AWS_SECRETS}" >> ${CONFIG}
     echo "AWS_TESTDATA=${AWS_TESTDATA}" >> ${CONFIG}
-
 }
 
+#------------------------------------------------------------------------------------------
 printInfo() {
     echo "Project name: ${PROJECTNAME}"
     echo "- Directories:"
@@ -404,8 +413,6 @@ printInfo() {
     echo "- Build information:"
     echo "    Node version: ${NODE_VERSION}"
     echo "    Production: ${PRODUCTION}"
-
-
 }
 
 
