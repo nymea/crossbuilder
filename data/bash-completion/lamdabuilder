@@ -1,0 +1,13 @@
+# lamdabuilder(1) completion                                       -*- shell-script -*-
+
+_lamdabuilder() 
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="help info delete shell build clean deploy stop start create-image -t --test-data -a --aws-dir -n --node -p --production -h --help --no-colors"
+
+    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+}
+complete -F _crossbuilder crossbuilder

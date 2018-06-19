@@ -1,0 +1,3 @@
+lamdabuilder /usr/bin/
+data/bash-completion/lamdabuilder usr/share/bash-completion/completions/
+
