@@ -13,6 +13,7 @@ COMMANDS:
   start                   Start the builder container
   delete                  Delete the container
   deploy                  Build and deply the lamda function. (default: dev)
+  test [testfile]         Run tests of your repository
   help                    Show this message
   create-image            Create the lxc build image
 
@@ -62,7 +63,7 @@ printRed() {
 
 #------------------------------------------------------------------------------------------
 waitContainerNetwork() {
-    printGreen "Wait for container getting online"
+    printGreen "Wait for container getting online..."
     NETWORK_UP=0
     for i in `seq 1 20`; do
         if lxc info ${CONTAINERNAME} | grep -e "eth0.*inet\b" > /dev/null 2>&1 ; then
@@ -76,6 +77,26 @@ waitContainerNetwork() {
     if [ $NETWORK_UP -ne 1 ] ; then
         printRed "Container is not connected to the Internet."
         exit 1
+    fi
+}
+
+waitDpkgAvailable() {
+    printGreen "Wait for container dpkg getting available..."
+    DPKG_AVAILABLE=0
+
+    for i in `seq 1 60`
+    do
+        #echo "${ERROR_COLOR} /var/lib/dpkg/lock exists... Waiting for it to disappear...${NC}"
+        if execContainerRoot test ! -e /var/lib/dpkg/lock; then
+            DPKG_AVAILABLE=1
+            printGreen "The update manager is available now."
+            break
+        fi
+        sleep 1
+    done
+    if [ $DPKG_AVAILABLE -ne 1 ] ; then
+        #echo "${ERROR_COLOR} /var/lib/dpkg/lock still exists after one minute. Assuming it is stale. Deleting it...${NC}"
+        execContainerRoot rm /var/lib/dpkg/lock
     fi
 }
 
@@ -95,18 +116,19 @@ createContainer() {
     fi
 
     # FIXME: get this from jenkins server
-    #lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
+    lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
 
-    lxc init ${IMAGENAME} ${CONTAINERNAME}
+    lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
     lxc config set ${CONTAINERNAME} security.privileged true
 
     # Start container
     startContainer
 
     waitContainerNetwork
-    execContainerRoot apt -y update
-    execContainerRoot apt -y upgrade
-    execContainerRoot apt -y install sudo
+    #waitDpkgAvailable
+    #execContainerRoot apt -y update
+    #execContainerRoot apt -y upgrade
+    #execContainerRoot apt -y install sudo
 
     # Set up user
     USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
@@ -138,12 +160,11 @@ createContainer() {
     else
         lxc config device set ${CONTAINERNAME} test-data_dir_mount source $AWS_TESTDATA
     fi
-
-    installNode ${NODE_VERSION}
 }
 
 #------------------------------------------------------------------------------------------
 installNode() {
+    printGreen "Set up node version $1"
     if  execContainerRoot ls /usr/local/node-$1-linux-x64  > /dev/null 2>&1; then
         printGreen "node version $1 already installed."
         createNodeLinks
@@ -315,7 +336,7 @@ build() {
 testLocal() {
     printGreen "Run local tests..."
     execContainer npm config set color ${COLORS}
-    execContainer npm test
+    execContainer npm test test/offline-tests
 }
 
 #------------------------------------------------------------------------------------------
@@ -403,7 +424,7 @@ printInfo() {
     echo "    User directory: ${USERDIR}"
 
     echo "- Container information:"
-    echo "    Image: ${IMAGENAME}"
+    echo "    Image: nymea:${IMAGENAME}"
     echo "    Container: ${CONTAINERNAME}"
 
     echo "- Configuration:"
@@ -472,18 +493,5 @@ printInfo
 createContainer
 build
 testLocal
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
