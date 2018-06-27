@@ -161,9 +161,13 @@ createContainer() {
 
     # Set up user
     USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
-    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- deluser $USERNAME_CONTAINER
-    # lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- delgroup $USERNAME_CONTAINER
-    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- userdel $USERNAME_CONTAINER
+    if [ ! -z "$USERNAME_CONTAINER" ]; then
+        printGreen "Removing user in container with the same user id: $USERNAME_CONTAINER"
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- deluser $USERNAME_CONTAINER
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- userdel $USERNAME_CONTAINER
+    fi
+
+    printGreen "Create user $USERNAME in the container"
     lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
     lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
 
