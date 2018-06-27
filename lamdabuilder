@@ -162,7 +162,8 @@ createContainer() {
     # Set up user
     USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
     lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- deluser $USERNAME_CONTAINER
-#    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- delgroup $USERNAME_CONTAINER
+    # lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- delgroup $USERNAME_CONTAINER
+    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- cat /etc/group
     lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
     lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
 
@@ -368,7 +369,7 @@ build() {
 testLocal() {
     printGreen "Run local tests..."
     execContainer npm config set color ${COLORS}
-    execContainer npm run test-jenkins test/offline-tests
+    execContainer npm run test-jenkins test/local-tests.js
 }
 
 #------------------------------------------------------------------------------------------
