@@ -1,6 +1,6 @@
 # lambdabuilder(1) completion                                       -*- shell-script -*-
 
-_lamndabuilder() 
+_lambdabuilder() 
 {
     local cur prev opts
     COMPREPLY=()
