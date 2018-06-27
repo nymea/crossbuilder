@@ -1,6 +1,6 @@
-# lamdabuilder(1) completion                                       -*- shell-script -*-
+# lambdabuilder(1) completion                                       -*- shell-script -*-
 
-_lamdabuilder() 
+_lamndabuilder() 
 {
     local cur prev opts
     COMPREPLY=()
@@ -10,4 +10,4 @@ _lamdabuilder()
 
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
 }
-complete -F _lamdabuilder lamdabuilder
+complete -F _lambdabuilder lambdabuilder
