@@ -199,23 +199,25 @@ createContainer() {
 
 #------------------------------------------------------------------------------------------
 installNode() {
-    printGreen "Set up node version $1"
-    if  execContainerRoot ls /usr/local/node-$1-linux-x64  > /dev/null 2>&1; then
-        printGreen "node version $1 already installed."
+    cleanNodeLinks
+    NODE_VERSION=$1
+    printGreen "Set up node version ${NODE_VERSION}"
+    if  execContainerRoot ls /usr/local/node-${NODE_VERSION}-linux-x64  > /dev/null 2>&1; then
+        printGreen "node version ${NODE_VERSION} already installed."
         createNodeLinks
         printBuildVersions
         return 0
     fi
 
-    printGreen "Installing node version $1"
+    printGreen "Installing node version ${NODE_VERSION}"
 
     # Download node
-    printGreen "Download node $1 ..."
-    execContainerRoot wget https://nodejs.org/download/release/${1}/node-${1}-linux-x64.tar.gz
-    execContainerRoot ls -lh node-${1}-linux-x64.tar.gz
-    printGreen "Extract node-${1}-linux-x64.tar.gz to /usr/local/"
-    execContainerRoot tar xf node-${1}-linux-x64.tar.gz -C /usr/local/
-    execContainerRoot rm -v node-${1}-linux-x64.tar.gz
+    printGreen "Download node ${NODE_VERSION} ..."
+    execContainerRoot wget https://nodejs.org/download/release/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz
+    execContainerRoot ls -lh node-${NODE_VERSION}-linux-x64.tar.gz
+    printGreen "Extract node-${NODE_VERSION}-linux-x64.tar.gz to /usr/local/"
+    execContainerRoot tar xf node-${NODE_VERSION}-linux-x64.tar.gz -C /usr/local/
+    execContainerRoot rm -v node-${NODE_VERSION}-linux-x64.tar.gz
 
     createNodeLinks
 
@@ -266,7 +268,7 @@ createBaseImage() {
     execContainerRoot apt -y upgrade
 
     # Install packages
-    execContainerRoot apt -y install python unzip
+    execContainerRoot apt -y install python unzip sudo
 
     installNode "v6.14.3"
     installNode "v8.11.3"
