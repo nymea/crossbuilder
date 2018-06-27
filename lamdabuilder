@@ -1,9 +1,37 @@
 #!/bin/bash -e
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#                                                                         #
+#  Copyright (C) 2018 Simon Stürz <simon.stuerz@guh.io>                   #
+#                                                                         #
+#  This file is part of lamdabuilder.                                     #
+#                                                                         #
+#  Lamdabuilder is free software: you can redistribute it and/or modif    #
+#  it under the terms of the GNU General Public License as published by   #
+#  the Free Software Foundation, version 2 of the License.                #
+#                                                                         #
+#  Lamdabuilder is distributed in the hope that it will be useful,        #
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of         #
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the           #
+#  GNU General Public License for more details.                           #
+#                                                                         #
+#  You should have received a copy of the GNU General Public License      #
+#  along with lamdabuilder. If not, see <http://www.gnu.org/licenses/>.   #
+#                                                                         #
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+
+VERSION=0.1.0
+
 #------------------------------------------------------------------------------------------
 function usage() {
   cat <<EOF
 Usage: $(basename $0) [COMMANDS] [OPTIONS]
+
+This tool should help building and deploying node based aws lamda function inside an lxd container.
+Copyright © 2018 Simon Stürz <simon.stuerz@guh.io>
+Version: ${VERSION}
 
 COMMANDS:
   shell                   Log into shell from builder container
@@ -12,10 +40,10 @@ COMMANDS:
   stop                    Stop the builder container
   start                   Start the builder container
   delete                  Delete the container
-  deploy                  Build and deply the lamda function. (default: dev)
+  deploy                  Build and deploy the lamda function. (default: dev)
   test [testfile]         Run tests of your repository
   help                    Show this message
-  create-image            Create the lxc build image
+  create-image            Create the lxc build image for the aws lamda builder
 
 OPTIONS:
   -t, --test-data [DIR]   The directory where the aws test user credentials are located
@@ -25,6 +53,7 @@ OPTIONS:
                           Default version is v8.11.3
   -p, --production        Deploy to AWS production server.
   -h, --help              Show this message
+  -v, --version           Show the version of the tool
   --no-colors             Disable colorfull output
 
 EOF
@@ -133,6 +162,7 @@ createContainer() {
     # Set up user
     USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
     lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- deluser $USERNAME_CONTAINER
+#    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- delgroup $USERNAME_CONTAINER
     lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
     lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
 
@@ -307,6 +337,7 @@ enterShell() {
 runCleanCommand() {
     printGreen "Clean node_modules directory..."
     execContainer rm -rf node_modules/
+    execContainer rm $TEST_XML_OUTPUT || true
 }
 
 #------------------------------------------------------------------------------------------
@@ -320,7 +351,8 @@ execContainerRoot() {
 execContainer() {
     command="$@"
     #printGreen "Execute command in container: $command"
-    lxc exec ${CONTAINERNAME} -- su -l -c " cd $BUILDDIR_MOUNT; export TESTDATA=$AWS_TESTDATA_MOUNT; $command" $USERNAME
+    lxc exec ${CONTAINERNAME} -- su -l -c \
+    "cd $BUILDDIR_MOUNT; export TESTDATA=$AWS_TESTDATA_MOUNT; export JUNIT_REPORT_PATH=${TEST_XML_OUTPUT}; $command" $USERNAME
 }
 
 #------------------------------------------------------------------------------------------
@@ -336,7 +368,7 @@ build() {
 testLocal() {
     printGreen "Run local tests..."
     execContainer npm config set color ${COLORS}
-    execContainer npm test test/offline-tests
+    execContainer npm run test-jenkins test/offline-tests
 }
 
 #------------------------------------------------------------------------------------------
@@ -363,8 +395,9 @@ initEnv() {
     AWS_TESTDATA="/home/${USERNAME}/.test-data"
     AWS_SECRETS_MOUNT="/home/${USERNAME}/.aws"
     AWS_TESTDATA_MOUNT="/home/${USERNAME}/.test-data"
+    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-result.xml
 
-    # FIXME: nymea:nymea-aws-lamda-builder
+    # Container stufff
     IMAGENAME=nymea-aws-lamda-builder
     CONTAINERNAME=builder-${PROJECTNAME}-${IMAGENAME}
 
@@ -477,6 +510,8 @@ while [ "$1" != "" ]; do
             COLORS=false;;
         -h | --help )
             usage && exit 0;;
+        -v | --version )
+            echo ${VERSION} && exit 0;;
         * )
             usage && exit 1;;
     esac
