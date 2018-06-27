@@ -4,19 +4,19 @@
 #                                                                         #
 #  Copyright (C) 2018 Simon Stürz <simon.stuerz@guh.io>                   #
 #                                                                         #
-#  This file is part of lamdabuilder.                                     #
+#  This file is part of lambdabuilder.                                    #
 #                                                                         #
-#  Lamdabuilder is free software: you can redistribute it and/or modif    #
+#  Lambdabuilder is free software: you can redistribute it and/or modif   #
 #  it under the terms of the GNU General Public License as published by   #
 #  the Free Software Foundation, version 2 of the License.                #
 #                                                                         #
-#  Lamdabuilder is distributed in the hope that it will be useful,        #
+#  Lambdabuilder is distributed in the hope that it will be useful,       #
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of         #
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the           #
 #  GNU General Public License for more details.                           #
 #                                                                         #
 #  You should have received a copy of the GNU General Public License      #
-#  along with lamdabuilder. If not, see <http://www.gnu.org/licenses/>.   #
+#  along with lambdabuilder. If not, see <http://www.gnu.org/licenses/>.  #
 #                                                                         #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -29,7 +29,7 @@ function usage() {
   cat <<EOF
 Usage: $(basename $0) [COMMANDS] [OPTIONS]
 
-This tool should help building and deploying node based aws lamda function inside an lxd container.
+This tool should help building and deploying node based aws lambda function inside an lxd container.
 Copyright © 2018 Simon Stürz <simon.stuerz@guh.io>
 Version: ${VERSION}
 
@@ -40,15 +40,15 @@ COMMANDS:
   stop                    Stop the builder container
   start                   Start the builder container
   delete                  Delete the container
-  deploy                  Build and deploy the lamda function. (default: dev)
+  deploy                  Build and deploy the lambda function. (default: dev)
   test [testfile]         Run tests of your repository
   help                    Show this message
-  create-image            Create the lxc build image for the aws lamda builder
+  create-image            Create the lxc build image for the aws lambda builder
 
 OPTIONS:
   -t, --test-data [DIR]   The directory where the aws test user credentials are located
   -a, --aws-dir [DIR]     The directory where the aws configration and credentials are located
-  -n, --node [VERSION]    The node version to use for building the lamda function.
+  -n, --node [VERSION]    The node version to use for building the lambda function.
                           Available versions can be found here: https://nodejs.org/download/release/
                           Default version is v8.11.3
   -p, --production        Deploy to AWS production server.
@@ -68,25 +68,25 @@ BASH_NORMAL="\e[0m"
 
 printGreen() {
     if ${COLORS}; then
-        echo -e "${BASH_GREEN}[+] AWS lamda builder: $1${BASH_NORMAL}"
+        echo -e "${BASH_GREEN}[+] AWS lambda builder: $1${BASH_NORMAL}"
     else
-        echo -e "[+] AWS lamda builder: $1"
+        echo -e "[+] AWS lambda builder: $1"
     fi
 }
 
 printOrange() {
     if ${COLORS}; then
-        echo -e "${BASH_ORANGE}[-] AWS lamda builder: $1${BASH_NORMAL}"
+        echo -e "${BASH_ORANGE}[-] AWS lambda builder: $1${BASH_NORMAL}"
     else
-        echo -e "[-] AWS lamda builder: $1"
+        echo -e "[-] AWS lambda builder: $1"
     fi
 }
 
 printRed() {
     if ${COLORS}; then
-        echo -e "${BASH_RED}[!] AWS lamda builder: $1${BASH_NORMAL}"
+        echo -e "${BASH_RED}[!] AWS lambda builder: $1${BASH_NORMAL}"
     else
-        echo -e "[!] AWS lamda builder: $1"
+        echo -e "[!] AWS lambda builder: $1"
     fi
 }
 
@@ -238,7 +238,7 @@ printBuildVersions() {
 #------------------------------------------------------------------------------------------
 # Note: this is only needed if you want to create the base
 createBaseImage() {
-    printGreen "Create base image for aws lamda builder:"
+    printGreen "Create base image for aws lambda builder:"
 
     CONTAINERNAME=${IMAGENAME}-base
 
@@ -380,7 +380,7 @@ testLocal() {
 initEnv() {
     # Verify we have a git repository
     if ! git status > /dev/null 2>&1 ; then
-        printRed "Could not find any git repositor in this folder. Please run $(basename $0) in the source directory of a lamda function code."
+        printRed "Could not find any git repositor in this folder. Please run $(basename $0) in the source directory of a lambda function code."
         exit 1
     fi
 
@@ -403,7 +403,7 @@ initEnv() {
     TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-result.xml
 
     # Container stufff
-    IMAGENAME=nymea-aws-lamda-builder
+    IMAGENAME=nymea-aws-lambda-builder
     CONTAINERNAME=builder-${PROJECTNAME}-${IMAGENAME}
 
     # Build options
@@ -414,7 +414,7 @@ initEnv() {
 
     # Script options
     COLORS=true
-    CONFIGDIR=${BUILDDIR}/.lamdabuilder
+    CONFIGDIR=${BUILDDIR}/.lambdabuilder
     CONFIG=${CONFIGDIR}/config
 
     loadConfiguration
@@ -436,7 +436,7 @@ saveConfiguration() {
     if [ -e ${CONFIG} ]; then rm ${CONFIG}; fi
     touch ${CONFIG}
 
-    echo "# AWS lamda builder configuration for ${PROJECTNAME}" >> ${CONFIG}
+    echo "# AWS lambda builder configuration for ${PROJECTNAME}" >> ${CONFIG}
     echo "COLORS=${COLORS}" >> ${CONFIG}
     echo "NODE_VERSION=${NODE_VERSION}" >> ${CONFIG}
     echo "AWS_SECRETS=${AWS_SECRETS}" >> ${CONFIG}

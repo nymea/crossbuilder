@@ -33,9 +33,9 @@ Depends: ${shlibs:Depends},
 Description: LXD based apk package builder for Qt projects
   Build Qt Projects for android
 
-Package: lamdabuilder
+Package: lambdabuilder
 Architecture: all
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-Description: LXD based node aws lamda function builder
-  Build node lamda function with different node version with ease and deply them.
+Description: LXD based node aws lambda function builder
+  Build node lambda function with different node version with ease and deploy them.

@@ -1,0 +1,3 @@
+lambdabuilder /usr/bin/
+data/bash-completion/lambdabuilder usr/share/bash-completion/completions/
+
