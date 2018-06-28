@@ -6,7 +6,7 @@ _lambdabuilder()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="shell info clean stop start delete deploy help create-image -t --test-data -a --aws-dir -n --node -p --production -h --help --no-colors"
+    opts="shell info clean stop start delete deploy deploy-production help create-image -t --test-data -a --aws-dir -n --node -h --help --no-colors -v --version"
 
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
 }

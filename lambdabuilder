@@ -23,26 +23,30 @@
 
 
 VERSION=0.1.0
+APPLICATION=$(basename $0)
 
 #------------------------------------------------------------------------------------------
 function usage() {
   cat <<EOF
-Usage: $(basename $0) [COMMANDS] [OPTIONS]
+Usage: $(basename $0) [OPTIONS] [COMMAND]
 
-This tool should help building and deploying node based aws lambda function inside an lxd container.
+This tool should help building and deploying node based AWS lambda function inside an lxd container.
+
 Copyright © 2018 Simon Stürz <simon.stuerz@guh.io>
 Version: ${VERSION}
+
+Note: Only one command is accepted each call.
 
 COMMANDS:
   shell                   Log into shell from builder container
   info                    Print information about the current build environment
-  clean                   Run the clean command of the build script
-  stop                    Stop the builder container
   start                   Start the builder container
+  stop                    Stop the builder container
   delete                  Delete the container
-  deploy                  Build and deploy the lambda function. (default: dev)
-  test [testfile]         Run tests of your repository
-  help                    Show this message
+  clean                   Clean all build and test data
+  deploy                  Build and deploy the lambda function to development account.
+  deploy-production       Build and deploy the lambda function to production account.
+  help                    Show this help message
   create-image            Create the lxc build image for the aws lambda builder
 
 OPTIONS:
@@ -51,10 +55,9 @@ OPTIONS:
   -n, --node [VERSION]    The node version to use for building the lambda function.
                           Available versions can be found here: https://nodejs.org/download/release/
                           Default version is v8.11.3
-  -p, --production        Deploy to AWS production server.
-  -h, --help              Show this message
-  -v, --version           Show the version of the tool
   --no-colors             Disable colorfull output
+  -h, --help              Show this help message
+  -v, --version           Show the version of the tool
 
 EOF
 }
@@ -109,6 +112,7 @@ waitContainerNetwork() {
     fi
 }
 
+#------------------------------------------------------------------------------------------
 waitDpkgAvailable() {
     printGreen "Wait for container dpkg getting available..."
     DPKG_AVAILABLE=0
@@ -152,12 +156,7 @@ createContainer() {
 
     # Start container
     startContainer
-
     waitContainerNetwork
-    #waitDpkgAvailable
-    #execContainerRoot apt -y update
-    #execContainerRoot apt -y upgrade
-    #execContainerRoot apt -y install sudo
 
     # Set up user
     USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
@@ -341,13 +340,6 @@ enterShell() {
 }
 
 #------------------------------------------------------------------------------------------
-runCleanCommand() {
-    printGreen "Clean node_modules directory..."
-    execContainer rm -rf node_modules/
-    execContainer rm $TEST_XML_OUTPUT || true
-}
-
-#------------------------------------------------------------------------------------------
 execContainerRoot() {
     command="$@"
     #printGreen "Execute command in container as root: $command"
@@ -367,9 +359,37 @@ build() {
     installNode ${NODE_VERSION}
     execContainer npm config set color ${COLORS}
 
-    printGreen "Building using node $(execContainer node --version) | npm install"
+    cleanBuild
+
+    printGreen "Building ${PROJECTNAME} (commit: ${COMMITHASH}) using node $(execContainer node --version) | npm install"
     execContainer npm install
 }
+
+#------------------------------------------------------------------------------------------
+buildProduction() {
+    installNode ${NODE_VERSION}
+    execContainer npm config set color ${COLORS}
+
+    cleanBuild
+
+    printGreen "Building ${PROJECTNAME} (commit: ${COMMITHASH}) using node $(execContainer node --version) | npm install --production"
+    execContainer npm install --production
+}
+
+#------------------------------------------------------------------------------------------
+cleanBuild() {
+    printGreen "Clean build..."
+    execContainer rm -rf node_modules/ || true
+    #execContainer rm $TEST_XML_OUTPUT || true
+}
+
+#------------------------------------------------------------------------------------------
+cleanAll() {
+    printGreen "Clean all..."
+    execContainer rm -rf node_modules/ || true
+    execContainer rm $TEST_XML_OUTPUT || true
+}
+
 
 #------------------------------------------------------------------------------------------
 testLocal() {
@@ -379,14 +399,37 @@ testLocal() {
 }
 
 #------------------------------------------------------------------------------------------
+deploy() {
+    buildProduction
+
+    # Deploy
+    printGreen "Serverless information of AWS development environemnt"
+    execContainer serverless info -s dev || true
+
+    printGreen "Deploy to AWS development environemnt"
+    execContainer serverless deploy -s dev
+
+    printGreen "Serverless information of AWS development environemnt"
+    execContainer serverless info -s dev
+
+
+}
+
+#------------------------------------------------------------------------------------------
+deployProduction() {
+    printOrange "======================================================================="
+    printOrange "Deploy to production. Use this function with caution!"
+    printOrange "======================================================================="
+
+    printGreen "TODO: Deploy to AWS production environemnt"
+
+}
+
+#------------------------------------------------------------------------------------------
 initEnv() {
-    # Verify we have a git repository
-    if ! git status > /dev/null 2>&1 ; then
-        printRed "Could not find any git repositor in this folder. Please run $(basename $0) in the source directory of a lambda function code."
-        exit 1
-    fi
 
     PROJECTNAME=$(basename `git rev-parse --show-toplevel`)
+    COMMITHASH=$(git rev-parse --short HEAD)
 
     # Container user
     USERNAME=`id --user --name`
@@ -472,10 +515,29 @@ printInfo() {
     echo "    Config file: ${CONFIG}"
 
     echo "- Build information:"
+    echo "    git commit hash: ${COMMITHASH}"
     echo "    Node version: ${NODE_VERSION}"
     echo "    Production: ${PRODUCTION}"
 }
 
+#------------------------------------------------------------------------------------------
+verifyGitRepository() {
+    # Verify we have a git repository
+    if ! git status > /dev/null 2>&1 ; then
+        printRed "Could not find any git repositor in this folder. Please run $(basename $0) in the source directory of a lambda function code."
+        exit 1
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+verifyCommandCount() {
+    # Check if there is already a command specified
+    if [ "${COMMAND}" != "" ]; then
+        printRed "Multiple commands passed. Please pass only one command to ${APPLICATION}."
+        #usage
+        exit 1
+    fi
+}
 
 #------------------------------------------------------------------------------------------
 # Main
@@ -483,24 +545,30 @@ printInfo() {
 
 initEnv
 
+COMMAND=""
+
 while [ "$1" != "" ]; do
     case $1 in
         shell )
-            enterShell; exit 0;;
+            verifyCommandCount && COMMAND="enterShell";;
         clean )
-            runCleanCommand; exit 0;;
+            verifyCommandCount && COMMAND="cleanAll";;
         start )
-            startContainer; exit 0;;
+            verifyCommandCount && COMMAND="startContainer";;
         stop )
-            stopContainer; exit 0;;
+            verifyCommandCount && COMMAND="stopContainer";;
         delete )
-            deleteContainer; exit 0;;
+            verifyCommandCount && COMMAND="deleteContainer";;
         info )
-            printInfo && exit 0;;
+            verifyCommandCount && COMMAND="printInfo";;
+        deploy )
+            verifyCommandCount && COMMAND="deploy";;
+        deploy-production )
+            verifyCommandCount && COMMAND="deployProduction";;
         help )
-            usage && exit 0;;
+            verifyCommandCount && COMMAND="usage";;
         create-image )
-            createBaseImage && exit 0;;
+            verifyCommandCount && COMMAND="create-image";;
         -t | --test-data )
             AWS_TESTDATA=$2
             shift;;
@@ -509,9 +577,6 @@ while [ "$1" != "" ]; do
             shift;;
         -n | --node )
             NODE_VERSION=$2
-            shift;;
-        -p | --production )
-            PRODUCTION=true
             shift;;
         -n | --no-colors )
             COLORS=false;;
@@ -525,15 +590,33 @@ while [ "$1" != "" ]; do
     shift
 done
 
+# Note: these commands should always work
+if [ "${COMMAND}" == "create-image" ]; then createBaseImage; exit 0; fi
+if [ "${COMMAND}" == "usage" ]; then usage; exit 0; fi
+
 # Init configurations
+verifyGitRepository
 saveConfiguration
 loadConfiguration
+
+# Note: these commands should only work in a valid source directory
+# Execute the command
+if [ "${COMMAND}" == "enterShell" ]; then createContainer && enterShell; exit 0; fi
+if [ "${COMMAND}" == "cleanAll" ]; then cleanAll; exit 0; fi
+if [ "${COMMAND}" == "startContainer" ]; then startContainer; exit 0; fi
+if [ "${COMMAND}" == "stopContainer" ]; then stopContainer; exit 0; fi
+if [ "${COMMAND}" == "deleteContainer" ]; then deleteContainer; exit 0; fi
+if [ "${COMMAND}" == "printInfo" ]; then printInfo; exit 0; fi
+
+# If no command passed, just build and test local
 printInfo
-
-
-# Create container
 createContainer
+cleanAll
 build
 testLocal
+
+# Deploy commands
+if [ "${COMMAND}" == "deploy" ]; then deploy; exit 0; fi
+if [ "${COMMAND}" == "deployProduction" ]; then deployProduction; exit 0; fi
 
 
