@@ -189,8 +189,8 @@ createBaseImage() {
     execContainerRoot apt update
     execContainerRoot apt -y upgrade
     execContainerRoot apt install -y  debootstrap qemu-utils xz-utils git zip qemu-user-static \
-                                  rsync debian-keyring debian-archive-keyring wget whois \
-                                  debootstrap f2fs-tools
+                                      rsync debian-keyring debian-archive-keyring wget whois \
+                                      debootstrap f2fs-tools qemu binfmt-support
 
     # Create bootstraps
     CACHE_DIR=/root/cache
