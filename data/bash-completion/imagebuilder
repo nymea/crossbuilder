@@ -6,7 +6,7 @@ _imagebuilder()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="info stop start delete shell clean --help -h -s --script -d --directory -n --no-colors"
+    opts="info stop start delete shell clean create-image --help -h -s --script -n --no-colors -v --version"
 
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
 }

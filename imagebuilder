@@ -13,7 +13,6 @@ The tool can be run inside the build script directory and requires the name of t
 Copyright © 2018 Simon Stürz <simon.stuerz@guh.io>
 Version: ${VERSION}
 
-
 COMMANDS:
   shell                   Log into shell from builder container
   info                    Print information about the current build environment
@@ -26,7 +25,6 @@ COMMANDS:
 
 OPTIONS:
   -s, --script [SCRIPT]   The build script for the image
-  -d, --directory [DIR]   The build directory where the build script is located
   -n, --no-colors         Disable colorfull output
   -v, --version           Show the version of the tool
   -h, --help              Show this message
@@ -114,17 +112,16 @@ containerRunning() {
 
 #------------------------------------------------------------------------------------------
 createContainer() {
-    printGreen "Create lxc container ${CONTAINERNAME} for image building"
     if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
-        printOrange "--> Container ${CONTAINERNAME} already exists."
+        #printOrange "--> Container ${CONTAINERNAME} already exists."
         startContainer
         return 0
     fi
 
     # Get the xenial image
-    printGreen "Create container ${CONTAINERNAME}"
+    printGreen "Create lxc container ${CONTAINERNAME} out of nymea:${IMAGENAME} image for image building"
     # FIXME: nymea:${IMAGENAME}
-    lxc init ${IMAGENAME} ${CONTAINERNAME}
+    lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
 
     # Add loop devices
     lxc config device add ${CONTAINERNAME} loop0 unix-block path=/dev/loop0
@@ -141,13 +138,10 @@ createContainer() {
     lxc config set ${CONTAINERNAME} raw.apparmor "mount,"
     lxc config set ${CONTAINERNAME} security.privileged true
 
-    
     mountBuildDirectory
 
     startContainer
     waitContainerNetwork
-    waitDpkgAvailable
-
 }
 
 #------------------------------------------------------------------------------------------
@@ -197,7 +191,6 @@ createBaseImage() {
     execContainerRoot apt install -y  debootstrap qemu-utils xz-utils git zip qemu-user-static \
                                   rsync debian-keyring debian-archive-keyring wget whois \
                                   debootstrap f2fs-tools
-                                  
 
     # Create bootstraps
     CACHE_DIR=/root/cache
@@ -324,7 +317,6 @@ saveConfiguration() {
     echo "# nymea image builder configuration" >> ${CONFIG}
     echo "COLORS=${COLORS}" >> ${CONFIG}
     echo "BUILDSCRIPT=${BUILDSCRIPT}" >> ${CONFIG}
-    
 }
 
 #------------------------------------------------------------------------------------------
@@ -332,7 +324,7 @@ initEnv() {
     # Directories
     BUILDDIR=$(pwd)
     BUILDDIR_MOUNT=/root/$(basename ${BUILDDIR})
-        
+
     # Script options
     COLORS=true
     CONFIGDIR=${BUILDDIR}/.imagebuilder
@@ -342,10 +334,11 @@ initEnv() {
 #------------------------------------------------------------------------------------------
 printInfo() {
     echo "Project name: ${PROJECTNAME}"
+    echo "Build script for image: ${BUILDSCRIPT}"
     echo "- Directories:"
     echo "    Build directory: ${BUILDDIR}"
     echo "    Build mount directory: ${BUILDDIR_MOUNT}"
-    
+
     echo "- Container information:"
     echo "    Image: nymea:${IMAGENAME}"
     echo "    Container: ${CONTAINERNAME}"
@@ -362,6 +355,7 @@ printInfo() {
 #------------------------------------------------------------------------------------------
 
 COMMAND=""
+
 initEnv
 loadConfiguration
 
@@ -387,9 +381,6 @@ while [ "$1" != "" ]; do
         -s | --script )
             BUILDSCRIPT=$2
             shift;;
-        -d | --directory )
-            BUILDDIR=$2
-            shift;;
         -n | --no-colors )
             COLORS=false;;
         -h | --help )
@@ -402,7 +393,8 @@ while [ "$1" != "" ]; do
     shift
 done
 
-saveConfiguration
+# Note: we don't need any build script for creating the base image
+if [ "${COMMAND}" == "create-image" ]; then createBaseImage; exit 0; fi
 
 # Check if build script is specified
 if [ -z "${BUILDSCRIPT}" ]; then
@@ -416,20 +408,22 @@ if [ ! -f ${BUILDDIR}/${BUILDSCRIPT} ]; then
     exit 1
 fi
 
+saveConfiguration
+
+# Init
 PROJECTNAME=$(basename ${BUILDSCRIPT})
-# Container stuff
 IMAGENAME=nymea-image-builder
 CONTAINERNAME=builder-${PROJECTNAME}-${IMAGENAME}
 
 # Execut command
-if [ "${COMMAND}" == "enterShell" ]; then enterShell; exit 0; fi
+if [ "${COMMAND}" == "enterShell" ]; then createContainer && enterShell; exit 0; fi
 if [ "${COMMAND}" == "runCleanCommand" ]; then runCleanCommand; exit 0; fi
 if [ "${COMMAND}" == "startContainer" ]; then startContainer; exit 0; fi
 if [ "${COMMAND}" == "stopContainer" ]; then stopContainer; exit 0; fi
 if [ "${COMMAND}" == "deleteContainer" ]; then deleteContainer; exit 0; fi
-if [ "${COMMAND}" == "create-image" ]; then createBaseImage; exit 0; fi
 if [ "${COMMAND}" == "printInfo" ]; then printInfo; exit 0; fi
 
+# Default build the container
 printInfo
 createContainer
 buildImage
