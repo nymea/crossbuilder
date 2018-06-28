@@ -325,6 +325,8 @@ initEnv() {
     BUILDDIR=$(pwd)
     BUILDDIR_MOUNT=/root/$(basename ${BUILDDIR})
 
+    IMAGENAME=nymea-image-builder
+
     # Script options
     COLORS=true
     CONFIGDIR=${BUILDDIR}/.imagebuilder
@@ -412,7 +414,6 @@ saveConfiguration
 
 # Init
 PROJECTNAME=$(basename ${BUILDSCRIPT})
-IMAGENAME=nymea-image-builder
 CONTAINERNAME=builder-${PROJECTNAME}-${IMAGENAME}
 
 # Execut command
