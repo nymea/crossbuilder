@@ -141,12 +141,13 @@ containerRunning() {
 
 #------------------------------------------------------------------------------------------
 createContainer() {
-    printGreen "Create lxc container ${CONTAINERNAME}"
     if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
-        printOrange "--> Container ${CONTAINERNAME} already exists."
+        #printOrange "--> Container ${CONTAINERNAME} already exists."
         startContainer
         return 0
     fi
+
+    printGreen "Create lxc container ${CONTAINERNAME}"
 
     # FIXME: get this from jenkins server
     lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
@@ -318,11 +319,9 @@ deleteContainer() {
 
 #------------------------------------------------------------------------------------------
 startContainer() {
-    printGreen "Start container ${CONTAINERNAME}"
     if ! containerRunning; then
+        printGreen "Start container ${CONTAINERNAME}"
         lxc start ${CONTAINERNAME};
-    else
-        printOrange "--> Container ${CONTAINERNAME} already running"
     fi
 }
 
