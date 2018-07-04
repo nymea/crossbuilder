@@ -195,6 +195,14 @@ createContainer() {
     else
         lxc config device set ${CONTAINERNAME} test-data_dir_mount source $AWS_TESTDATA
     fi
+
+    if ! lxc config device get ${CONTAINERNAME} ssh_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting ssh folder ${SSH_DIRECTOY} into container."
+        lxc config device add ${CONTAINERNAME} ssh_dir_mount disk source=$SSH_DIRECTOY path=$SSH_DIRECTOY
+    else
+        lxc config device set ${CONTAINERNAME} ssh_dir_mount source $SSH_DIRECTOY
+    fi
+
 }
 
 #------------------------------------------------------------------------------------------
@@ -393,8 +401,17 @@ cleanAll() {
 #------------------------------------------------------------------------------------------
 testLocal() {
     printGreen "Run local tests..."
+    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-local-result.xml
     execContainer npm config set color ${COLORS}
     execContainer npm run test-jenkins test/local-tests.js
+}
+
+#------------------------------------------------------------------------------------------
+testRemote() {
+    printGreen "Run remote tests..."
+    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-remote-result.xml
+    execContainer npm config set color ${COLORS}
+    execContainer npm run test-jenkins test/remote-tests.js
 }
 
 #------------------------------------------------------------------------------------------
@@ -411,7 +428,8 @@ deploy() {
     printGreen "Serverless information of AWS development environemnt"
     execContainer serverless info -s dev
 
-
+    build
+    testRemote
 }
 
 #------------------------------------------------------------------------------------------
@@ -441,6 +459,7 @@ initEnv() {
     USERDIR=/home/${USERNAME}
     BUILDDIR_MOUNT=${USERDIR}/${PROJECTNAME}
     AWS_SECRETS="/home/${USERNAME}/.aws"
+    SSH_DIRECTOY="/home/${USERNAME}/.ssh"
     AWS_TESTDATA="/home/${USERNAME}/.test-data"
     AWS_SECRETS_MOUNT="/home/${USERNAME}/.aws"
     AWS_TESTDATA_MOUNT="/home/${USERNAME}/.test-data"
@@ -493,6 +512,7 @@ printInfo() {
     echo "- Directories:"
     echo "    Build directory: ${BUILDDIR}"
     echo "    Build mount directory: ${BUILDDIR_MOUNT}"
+    echo "    SSH directoriy: ${SSH_DIRECTOY}"
     echo "    AWS secret directoriy: ${AWS_SECRETS}"
     echo "    AWS secret mount directoriy: ${AWS_SECRETS_MOUNT}"
     echo "    AWS test data directoriy: ${AWS_TESTDATA}"
