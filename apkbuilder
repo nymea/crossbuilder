@@ -6,14 +6,16 @@ display_help () {
     echo "Usage: $PROGRAM_NAME [options] [command]"
     echo ""
     echo "Available commands:"
-    echo "    help            - Display this help."
-    echo "    delete          - Delete a container."
-    echo "    shell           - Enter a container."
-    echo "    clean           - Clean the snap build dir."
+    echo "    help                      - Display this help."
+    echo "    delete                    - Delete a container."
+    echo "    shell                     - Enter a container."
+    echo "    clean                     - Clean the snap build dir."
     echo "Options:"
-    echo "    --help, -h      - Display this help."
+    echo "    --help, -h                - Display this help."
 #    echo "    --mount-ssh     - Mount ~/.ssh into the container (if snapcraft requires ssh keys to$
-    echo "    --silo, -s      - Add ci-repo.nymea.io/... to the apt sources"
+    echo "    --sign=, -s=<keystore>    - sign it with the given keystore"
+    echo "    --cert-alias=, -c=<alias> - use the certificate alias for the keytore"
+    echo "    --keypass=, -k=<pass>     - provide a password to open the keystore given with --sign"
 }
 
 variables() {
@@ -121,10 +123,16 @@ exec_container () {
 }
 
 build () {
-    exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT -spec android-g++; make qmake_all; make -j4"
+    exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-g++; make qmake_all; make -j4"
     exec_container "cd builddir; make INSTALL_ROOT=$MOUNT_POINT/builddir/android-build/ install"
     FILES=`exec_container "cd builddir; find $MOUNT_POINT/builddir -name *deployment-settings.json"`
-    exec_container "cd builddir; androiddeployqt --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-26 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --verbose"
+    echo "Signing with: $1"
+    if [ "$KEYSTORE_PATH" != "" ]; then
+        lxc file push $KEYSTORE_PATH $LXD_CONTAINER/tmp/key.keystore
+        exec_container "cd builddir; androiddeployqt --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-26 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
+    else
+        exec_container "cd builddir; androiddeployqt --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-26 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --verbose"
+    fi
 }
 
 clean () {
@@ -132,6 +140,10 @@ clean () {
 }
 
 variables
+
+KEYSTORE_PATH=""
+KEYSTORE_CERT=""
+KEYSTORE_PASS=""
 
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
@@ -145,6 +157,15 @@ while [ "$1" != "" ]; do
             --help | -h | help )
                 display_help
                 exit 0
+            ;;
+            --sign | -s )
+                KEYSTORE_PATH=$VALUE
+            ;;
+            --cert-alias | -c )
+                KEYSTORE_CERT=$VALUE
+            ;;
+            --keypass | -k )
+                KEYSTORE_PASS=$VALUE
             ;;
             *)
                 display_help
