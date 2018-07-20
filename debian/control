@@ -37,5 +37,6 @@ Package: lambdabuilder
 Architecture: all
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+         socat,
 Description: LXD based node aws lambda function builder
   Build node lambda function with different node version with ease and deploy them.

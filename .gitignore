@@ -1,0 +1,5 @@
+.crossbuilder/
+.imagebuilder/
+.lambdabuilder/
+debs_*
+source_repository/

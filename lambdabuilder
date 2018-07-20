@@ -44,15 +44,16 @@ COMMANDS:
   stop                    Stop the builder container
   delete                  Delete the container
   clean                   Clean all build and test data
-  deploy                  Build and deploy the lambda function to development account.
-  deploy-production       Build and deploy the lambda function to production account.
+  deploy                  Build, test and deploy the lambda function to development account
+  deploy-production       Build, test and deploy the lambda function to production account
   help                    Show this help message
   create-image            Create the lxc build image for the aws lambda builder
 
 OPTIONS:
   -t, --test-data [DIR]   The directory where the aws test user credentials are located
   -a, --aws-dir [DIR]     The directory where the aws configration and credentials are located
-  -n, --node [VERSION]    The node version to use for building the lambda function.
+  -s, --ssh-dir [DIR]     The directory where the ssh configration and credentials are located. Default $HOME/.ssh
+  -n, --node [VERSION]    The node version to use for building the lambda function
                           Available versions can be found here: https://nodejs.org/download/release/
                           Default version is v8.11.3
   --no-colors             Disable colorfull output
@@ -91,6 +92,131 @@ printRed() {
     else
         echo -e "[!] AWS lambda builder: $1"
     fi
+}
+
+#------------------------------------------------------------------------------------------
+createContainer() {
+    if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
+        #printOrange "--> Container ${CONTAINERNAME} already exists."
+        startContainer
+        return 0
+    fi
+
+    printGreen "Create lxc container ${CONTAINERNAME}"
+    lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
+
+    lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
+    lxc config set ${CONTAINERNAME} security.privileged true
+
+    # Start container
+    startContainer
+    waitContainerNetwork
+
+    # Set up user
+    USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
+    if [ ! -z "$USERNAME_CONTAINER" ]; then
+        # Note remove the current container user only if the user id is the same
+        printGreen "Removing user in container with the same user id: $USERNAME_CONTAINER"
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- userdel $USERNAME_CONTAINER || true
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- delgroup $USERNAME_CONTAINER || true
+    fi
+
+    printGreen "Create user $USERNAME in the container"
+    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
+    lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password \
+             --gecos "" --uid $USERID --gid $GROUPID $USERNAME
+
+    execContainerRoot adduser $USERNAME sudo
+    execContainerRoot passwd --delete $USERNAME
+
+    # Mount source directory into folder
+    if ! lxc config device get ${CONTAINERNAME} current_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting build directory ${BUILDDIR} into container."
+        lxc config device add ${CONTAINERNAME} current_dir_mount disk source=$BUILDDIR path=$BUILDDIR_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} current_dir_mount source $BUILDDIR
+    fi
+
+    # Mount aws directory into container
+    if ! lxc config device get ${CONTAINERNAME} aws_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting aws-dir ${AWS_SECRETS} into container."
+        lxc config device add ${CONTAINERNAME} aws_dir_mount disk source=$AWS_SECRETS path=$AWS_SECRETS_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} aws_dir_mount source $AWS_SECRETS
+    fi
+
+    # Mount test-data directory into container
+    if ! lxc config device get ${CONTAINERNAME} test-data_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting test-data ${AWS_TESTDATA} into container."
+        lxc config device add ${CONTAINERNAME} test-data_dir_mount disk source=$AWS_TESTDATA path=$AWS_TESTDATA_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} test-data_dir_mount source $AWS_TESTDATA
+    fi
+
+    # Mount ssh directory into container
+    if ! lxc config device get ${CONTAINERNAME} ssh_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting ssh folder ${SSH_DIRECTOY} into container."
+        lxc config device add ${CONTAINERNAME} ssh_dir_mount disk source=$SSH_DIRECTOY path=$SSH_DIRECTOY_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} ssh_dir_mount source $SSH_DIRECTOY
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+# Note: this is only needed if you want to create the base
+createBaseImage() {
+    printGreen "Create base image for aws lambda builder:"
+
+    CONTAINERNAME=${IMAGENAME}-base
+
+    # Check if there is an image
+    if lxc image info ${IMAGENAME} > /dev/null 2>&1; then
+        printRed "There is already an image with the name ${IMAGENAME}. Please rename or delete the existing image."
+        exit 1
+    fi
+
+    # Check if there is a container
+    if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
+        printRed "--> Container ${CONTAINERNAME} already exists. Please rename or delete the existing container."
+        return 1
+    fi
+
+    # Get the bionic image
+    printGreen "Create base container ${CONTAINERNAME}"
+    lxc init ubuntu:18.04 ${CONTAINERNAME}
+
+    startContainer
+    waitContainerNetwork
+
+    # Update
+    execContainerRoot apt -y update
+    execContainerRoot apt -y upgrade
+
+    # Install packages
+    execContainerRoot apt -y install python unzip sudo socat git
+
+    # install aws-cli
+    printGreen "Install aws-cli"
+    execContainerRoot wget https://s3.amazonaws.com/aws-cli/awscli-bundle.zip
+    execContainerRoot unzip awscli-bundle.zip
+    execContainerRoot ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
+    execContainerRoot rm -r awscli-bundle*
+    execContainerRoot aws --version
+
+    # Setup preinstalled node versions
+    installNode "v6.14.3"
+    installNode "v8.11.3"
+
+    # Clean up container
+    execContainerRoot apt -y autoremove
+    execContainerRoot apt -y clean
+
+    # Create the image out of this container
+    stopContainer
+    printGreen "Create image ${IMAGENAME} out of the container ${CONTAINERNAME}"
+    lxc publish ${CONTAINERNAME} --alias ${IMAGENAME}
+    deleteContainer
+    lxc image list | grep ${IMAGENAME}
 }
 
 #------------------------------------------------------------------------------------------
@@ -133,76 +259,39 @@ waitDpkgAvailable() {
     fi
 }
 
+
+#------------------------------------------------------------------------------------------
+forwardSshAgent() {
+    if [ -z $SSH_AUTH_SOCK ]; then
+        printOrange "There is ssh-agent authentication socket available. Skipping ssh-agent forwarding."
+        unset SSH_AGENT_PID
+        return 0
+    fi
+
+    if [ ! -z $SSH_AGENT_PID ]; then
+        printOrange "The ssh-agent is already forwarded. Skipping ssh-agent forwarding."
+        return 0
+    fi
+
+    SSH_AGENT_SCRIPT=$(cat << EOF
+echo "Setup ssh-agent forward"
+trap "echo 'Stop ssh-agent forward'; exit 0" SIGINT SIGTERM
+lxc exec ${CONTAINERNAME} -- "rm ${SSH_AGENT_SOCKET} || true"
+while :; do
+    socat UNIX:$SSH_AUTH_SOCK EXEC:"lxc exec ${CONTAINERNAME} -- /usr/bin/socat STDIN UNIX-LISTEN\:${SSH_AGENT_SOCKET}";
+done
+EOF
+)
+    # Execute the pipe and store the PID for clean up
+    bash -e -x -c "${SSH_AGENT_SCRIPT}" &
+    SSH_AGENT_PID=$!
+    printGreen "Forward ssh-agent ${SSH_AUTH_SOCK} successfully info container. Forward PID: $SSH_AGENT_PID"
+}
+
 #------------------------------------------------------------------------------------------
 containerRunning() {
     lxc list | grep ${CONTAINERNAME} | grep RUNNING > /dev/null 2>&1
     return $?
-}
-
-#------------------------------------------------------------------------------------------
-createContainer() {
-    if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
-        #printOrange "--> Container ${CONTAINERNAME} already exists."
-        startContainer
-        return 0
-    fi
-
-    printGreen "Create lxc container ${CONTAINERNAME}"
-
-    # FIXME: get this from jenkins server
-    lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
-
-    lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
-    lxc config set ${CONTAINERNAME} security.privileged true
-
-    # Start container
-    startContainer
-    waitContainerNetwork
-
-    # Set up user
-    USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
-    if [ ! -z "$USERNAME_CONTAINER" ]; then
-        printGreen "Removing user in container with the same user id: $USERNAME_CONTAINER"
-        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- deluser $USERNAME_CONTAINER
-        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- userdel $USERNAME_CONTAINER || true
-    fi
-
-    printGreen "Create user $USERNAME in the container"
-    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
-    lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
-
-    execContainerRoot adduser $USERNAME sudo
-    execContainerRoot passwd --delete $USERNAME
-
-    # Mount folders
-    if ! lxc config device get ${CONTAINERNAME} current_dir_mount disk 2> /dev/null ; then
-        printGreen "Mounting build directory ${BUILDDIR} into container."
-        lxc config device add ${CONTAINERNAME} current_dir_mount disk source=$BUILDDIR path=$BUILDDIR_MOUNT
-    else
-        lxc config device set ${CONTAINERNAME} current_dir_mount source $BUILDDIR
-    fi
-
-    if ! lxc config device get ${CONTAINERNAME} aws_dir_mount disk 2> /dev/null ; then
-        printGreen "Mounting aws-dir ${AWS_SECRETS} into container."
-        lxc config device add ${CONTAINERNAME} aws_dir_mount disk source=$AWS_SECRETS path=$AWS_SECRETS_MOUNT
-    else
-        lxc config device set ${CONTAINERNAME} aws_dir_mount source $AWS_SECRETS
-    fi
-
-    if ! lxc config device get ${CONTAINERNAME} test-data_dir_mount disk 2> /dev/null ; then
-        printGreen "Mounting test-data ${AWS_TESTDATA} into container."
-        lxc config device add ${CONTAINERNAME} test-data_dir_mount disk source=$AWS_TESTDATA path=$AWS_TESTDATA_MOUNT
-    else
-        lxc config device set ${CONTAINERNAME} test-data_dir_mount source $AWS_TESTDATA
-    fi
-
-    if ! lxc config device get ${CONTAINERNAME} ssh_dir_mount disk 2> /dev/null ; then
-        printGreen "Mounting ssh folder ${SSH_DIRECTOY} into container."
-        lxc config device add ${CONTAINERNAME} ssh_dir_mount disk source=$SSH_DIRECTOY path=$SSH_DIRECTOY
-    else
-        lxc config device set ${CONTAINERNAME} ssh_dir_mount source $SSH_DIRECTOY
-    fi
-
 }
 
 #------------------------------------------------------------------------------------------
@@ -245,62 +334,6 @@ printBuildVersions() {
     execContainerRoot aws --version
 }
 
-#------------------------------------------------------------------------------------------
-# Note: this is only needed if you want to create the base
-createBaseImage() {
-    printGreen "Create base image for aws lambda builder:"
-
-    CONTAINERNAME=${IMAGENAME}-base
-
-    # Check if there is an image
-    if lxc image info ${IMAGENAME} > /dev/null 2>&1; then
-        printRed "There is already an image with the name ${IMAGENAME}. Please rename or delete the existing image."
-        exit 1
-    fi
-
-    # Check if there is a container
-    if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
-        printRed "--> Container ${CONTAINERNAME} already exists. Please rename or delete the existing container."
-        return 1
-    fi
-
-    # Get the bionic image
-    printGreen "Create base container ${CONTAINERNAME}"
-    lxc init ubuntu:18.04 ${CONTAINERNAME}
-
-    startContainer
-    waitContainerNetwork
-
-    # Update
-    execContainerRoot apt -y update
-    execContainerRoot apt -y upgrade
-
-    # Install packages
-    execContainerRoot apt -y install python unzip sudo
-
-    installNode "v6.14.3"
-    installNode "v8.11.3"
-
-    # install aws-cli
-    printGreen "Install aws-cli"
-    execContainerRoot wget https://s3.amazonaws.com/aws-cli/awscli-bundle.zip
-    execContainerRoot unzip awscli-bundle.zip
-    execContainerRoot ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
-    execContainerRoot rm -r awscli-bundle*
-    execContainerRoot aws --version
-
-    # Clean up container
-    execContainerRoot apt -y autoremove
-    execContainerRoot apt -y clean
-
-    # Create the image out of this container
-    stopContainer
-    printGreen "Create image ${IMAGENAME} out of the container ${CONTAINERNAME}"
-    lxc publish ${CONTAINERNAME} --alias ${IMAGENAME}
-    deleteContainer
-    lxc image list | grep ${IMAGENAME}
-}
-
 
 #------------------------------------------------------------------------------------------
 createNodeLinks() {
@@ -320,17 +353,13 @@ cleanNodeLinks() {
 }
 
 #------------------------------------------------------------------------------------------
-deleteContainer() {
-    printGreen "Delete container ${CONTAINERNAME}"
-    lxc delete ${CONTAINERNAME} --force || true
-}
-
-#------------------------------------------------------------------------------------------
 startContainer() {
     if ! containerRunning; then
         printGreen "Start container ${CONTAINERNAME}"
         lxc start ${CONTAINERNAME};
     fi
+
+    #forwardSshAgent
 }
 
 #------------------------------------------------------------------------------------------
@@ -340,31 +369,57 @@ stopContainer() {
 }
 
 #------------------------------------------------------------------------------------------
+deleteContainer() {
+    printGreen "Delete container ${CONTAINERNAME}"
+    lxc delete ${CONTAINERNAME} --force || true
+}
+
+#------------------------------------------------------------------------------------------
 enterShell() {
     printGreen "Enter shell in container ${CONTAINERNAME}"
-    lxc exec ${CONTAINERNAME} -- su --login $USERNAME
+    #execContainer bash
+    lxc exec ${CONTAINERNAME} -- su --login ${USERNAME}
     #lxc exec ${CONTAINERNAME} bash
 }
 
 #------------------------------------------------------------------------------------------
 execContainerRoot() {
-    command="$@"
-    #printGreen "Execute command in container as root: $command"
-    lxc exec ${CONTAINERNAME} -- su -c "$command"
+    EXECUTION="$@"
+    ENVIRONMENT=$(containerEnvironment)
+    #printGreen "Execute command in container as root: $ENVIRONMENT $EXECUTION"
+    #printGreen "Environment: $ENVIRONMENT"
+    lxc exec ${CONTAINERNAME} -- su -c "$ENVIRONMENT $EXECUTION"
 }
 
 #------------------------------------------------------------------------------------------
 execContainer() {
-    command="$@"
-    #printGreen "Execute command in container: $command"
+    EXECUTION="$@"
+    ENVIRONMENT=$(containerEnvironment)
+    #printGreen "Execute command in container: $EXECUTION"
+    #printGreen "Environment: $ENVIRONMENT"
     lxc exec ${CONTAINERNAME} -- su -l -c \
-    "cd $BUILDDIR_MOUNT; export TESTDATA=$AWS_TESTDATA_MOUNT; export JUNIT_REPORT_PATH=${TEST_XML_OUTPUT}; $command" $USERNAME
+    "cd $BUILDDIR_MOUNT; $ENVIRONMENT $EXECUTION" $USERNAME
 }
+
+#------------------------------------------------------------------------------------------
+containerEnvironment() {
+    cat <<EOF
+export CHANNEL=${CURRENT_CHANNEL};
+export TESTDATA=${AWS_TESTDATA_MOUNT};
+export JUNIT_REPORT_PATH=${TEST_XML_OUTPUT};
+export SSH_AUTH_SOCK=${SSH_AGENT_SOCKET};
+
+EOF
+}
+
 
 #------------------------------------------------------------------------------------------
 build() {
     installNode ${NODE_VERSION}
     execContainer npm config set color ${COLORS}
+
+    printGreen "Build environment"
+    execContainer env
 
     cleanBuild
 
@@ -385,18 +440,17 @@ buildProduction() {
 
 #------------------------------------------------------------------------------------------
 cleanBuild() {
-    printGreen "Clean build..."
+    printGreen "Clean build"
     execContainer rm -rf node_modules/ || true
-    #execContainer rm $TEST_XML_OUTPUT || true
 }
 
 #------------------------------------------------------------------------------------------
 cleanAll() {
-    printGreen "Clean all..."
-    execContainer rm -rf node_modules/ || true
-    execContainer rm $TEST_XML_OUTPUT || true
+    printGreen "Clean all data"
+    cleanBuild
+    printGreen "Clean test results"
+    execContainer rm -v *report.xml || true
 }
-
 
 #------------------------------------------------------------------------------------------
 testLocal() {
@@ -439,7 +493,6 @@ deployProduction() {
     printOrange "======================================================================="
 
     printGreen "TODO: Deploy to AWS production environemnt"
-
 }
 
 #------------------------------------------------------------------------------------------
@@ -460,10 +513,11 @@ initEnv() {
     BUILDDIR_MOUNT=${USERDIR}/${PROJECTNAME}
     AWS_SECRETS="/home/${USERNAME}/.aws"
     SSH_DIRECTOY="/home/${USERNAME}/.ssh"
+    SSH_DIRECTOY_MOUNT="/home/${USERNAME}/.ssh"
     AWS_TESTDATA="/home/${USERNAME}/.test-data"
     AWS_SECRETS_MOUNT="/home/${USERNAME}/.aws"
     AWS_TESTDATA_MOUNT="/home/${USERNAME}/.test-data"
-    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-result.xml
+    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-local-result.xml
 
     # Container stufff
     IMAGENAME=nymea-aws-lambda-builder
@@ -472,13 +526,17 @@ initEnv() {
     # Build options
     PRODUCTION=false
     DEPLOY=false
-    CHANNEL=development
+    CURRENT_CHANNEL=development
     NODE_VERSION=v8.11.3
 
     # Script options
     COLORS=true
     CONFIGDIR=${BUILDDIR}/.lambdabuilder
     CONFIG=${CONFIGDIR}/config
+
+    # ssh-agent
+    unset SSH_AGENT_PID
+    SSH_AGENT_SOCKET=/tmp/ssh-agent-sock
 
     loadConfiguration
 }
@@ -504,6 +562,7 @@ saveConfiguration() {
     echo "NODE_VERSION=${NODE_VERSION}" >> ${CONFIG}
     echo "AWS_SECRETS=${AWS_SECRETS}" >> ${CONFIG}
     echo "AWS_TESTDATA=${AWS_TESTDATA}" >> ${CONFIG}
+    echo "SSH_DIRECTOY=${SSH_DIRECTOY}" >> ${CONFIG}
 }
 
 #------------------------------------------------------------------------------------------
@@ -512,11 +571,12 @@ printInfo() {
     echo "- Directories:"
     echo "    Build directory: ${BUILDDIR}"
     echo "    Build mount directory: ${BUILDDIR_MOUNT}"
-    echo "    SSH directoriy: ${SSH_DIRECTOY}"
     echo "    AWS secret directoriy: ${AWS_SECRETS}"
     echo "    AWS secret mount directoriy: ${AWS_SECRETS_MOUNT}"
     echo "    AWS test data directoriy: ${AWS_TESTDATA}"
     echo "    AWS test data mount directoriy: ${AWS_TESTDATA_MOUNT}"
+    echo "    SSH directoriy: ${SSH_DIRECTOY}"
+    echo "    SSH mount directoriy: ${SSH_DIRECTOY_MOUNT}"
 
     echo "- User information:"
     echo "    Username: ${USERNAME}"
@@ -534,9 +594,9 @@ printInfo() {
     echo "    Config file: ${CONFIG}"
 
     echo "- Build information:"
-    echo "    git commit hash: ${COMMITHASH}"
+    echo "    Commit hash: ${COMMITHASH}"
     echo "    Node version: ${NODE_VERSION}"
-    echo "    Production: ${PRODUCTION}"
+    echo "    Channel: ${CURRENT_CHANNEL}"
 }
 
 #------------------------------------------------------------------------------------------
@@ -559,8 +619,17 @@ verifyCommandCount() {
 }
 
 #------------------------------------------------------------------------------------------
+finish() {
+    # Kill all child processes
+    kill 0
+}
+
+#------------------------------------------------------------------------------------------
 # Main
 #------------------------------------------------------------------------------------------
+
+# Clean up if the script exit
+trap finish EXIT
 
 initEnv
 
@@ -593,6 +662,9 @@ while [ "$1" != "" ]; do
             shift;;
         -a | --aws-dir )
             AWS_SECRETS=$2
+            shift;;
+        -s | --ss-dir )
+            SSH_DIRECTOY=$2
             shift;;
         -n | --node )
             NODE_VERSION=$2

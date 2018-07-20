@@ -1,11 +1,32 @@
-#!/bin/bash
+#!/bin/bash -ex
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#                                                                         #
+#  Copyright (C) 2018 Simon Stürz <simon.stuerz@guh.io>                   #
+#                                                                         #
+#  This file is part of imagebuilder.                                     #
+#                                                                         #
+#  Imagebuilder is free software: you can redistribute it and/or modif    #
+#  it under the terms of the GNU General Public License as published by   #
+#  the Free Software Foundation, version 2 of the License.                #
+#                                                                         #
+#  Imagebuilder is distributed in the hope that it will be useful,        #
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of         #
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the           #
+#  GNU General Public License for more details.                           #
+#                                                                         #
+#  You should have received a copy of the GNU General Public License      #
+#  along with imagebuilder. If not, see <http://www.gnu.org/licenses/>.   #
+#                                                                         #
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 VERSION=0.1.0
+APPLICATION=$(basename $0)
 
 #------------------------------------------------------------------------------------------
 function usage() {
   cat <<EOF
-Usage: $(basename $0) [OPTIONS] [COMMAND]
+Usage: ${APPLICATION} [OPTIONS] [COMMAND]
 
 This tool should help building images for different plattforms inside an lxd container.
 The tool can be run inside the build script directory and requires the name of the build script as parameter.
@@ -106,7 +127,7 @@ waitDpkgAvailable() {
 
 #------------------------------------------------------------------------------------------
 containerRunning() {
-    lxc list | grep ${CONTAINERNAME} | grep RUNNING > /dev/null 2>&1
+    lxc list | grep ${CONTAINERNAME} | grep 'RUNNING' > /dev/null 2>&1
     return $?
 }
 
@@ -138,10 +159,34 @@ createContainer() {
     lxc config set ${CONTAINERNAME} raw.apparmor "mount,"
     lxc config set ${CONTAINERNAME} security.privileged true
 
-    mountBuildDirectory
-
     startContainer
     waitContainerNetwork
+
+    # Set up user
+    USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
+    if [ ! -z "$USERNAME_CONTAINER" ]; then
+        # Note remove the current container user only if the user id is the same
+        printGreen "Removing user in container with the same user id: $USERNAME_CONTAINER"
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- userdel $USERNAME_CONTAINER || true
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- delgroup $USERNAME_CONTAINER || true
+    fi
+
+    printGreen "Create user $USERNAME in the container"
+    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
+    lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password \
+             --gecos "" --uid $USERID --gid $GROUPID $USERNAME
+
+    execContainerRoot adduser $USERNAME sudo
+    execContainerRoot passwd --delete $USERNAME
+
+    # Mount folders
+    if ! lxc config device get ${CONTAINERNAME} current_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting build directory ${BUILDDIR} into container."
+        lxc config device add ${CONTAINERNAME} current_dir_mount disk source=$BUILDDIR path=$BUILDDIR_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} current_dir_mount source $BUILDDIR
+    fi
+
 }
 
 #------------------------------------------------------------------------------------------
@@ -258,12 +303,6 @@ stopContainer() {
 }
 
 #------------------------------------------------------------------------------------------
-mountBuildDirectory() {
-    printGreen "Mount build directory ${BUILDDIR} into container ${CONTAINERNAME} ${BUILDDIR_MOUNT}"
-    lxc config device add ${CONTAINERNAME} $(basename ${BUILDDIR}) disk source=${BUILDDIR} path=${BUILDDIR_MOUNT}
-}
-
-#------------------------------------------------------------------------------------------
 buildImage() {
     if ${COLORS}; then
         lxc exec ${CONTAINERNAME} -- su -c "cd ${BUILDDIR_MOUNT} && ./${BUILDSCRIPT}"
@@ -299,6 +338,25 @@ execContainerRoot() {
 }
 
 #------------------------------------------------------------------------------------------
+verifyCommandCount() {
+    # Check if there is already a command specified
+    if [ "${COMMAND}" != "" ]; then
+        printRed "Multiple commands passed. Please pass only one command to ${APPLICATION}."
+        #usage
+        exit 1
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+verifyGitRepository() {
+    # Verify we have a git repository
+    if ! git status > /dev/null 2>&1 ; then
+        printRed "Could not find any git repositor in this folder. Please run ${APPLICATION} in the source directory of the specified image script."
+        exit 1
+    fi
+}
+
+#------------------------------------------------------------------------------------------
 loadConfiguration() {
     if [ -e ${CONFIG} ]; then
         . ${CONFIG}
@@ -321,10 +379,18 @@ saveConfiguration() {
 
 #------------------------------------------------------------------------------------------
 initEnv() {
+
+    # Container user
+    USERNAME=`id --user --name`
+    GROUPNAME=$USERNAME
+    USERID=`id --user`
+    GROUPID=`id --group`
+
     # Directories
     BUILDDIR=$(pwd)
-    BUILDDIR_MOUNT=/root/$(basename ${BUILDDIR})
+    USERDIR=/home/${USERNAME}
 
+    # Container
     IMAGENAME=nymea-image-builder
 
     # Script options
@@ -336,10 +402,16 @@ initEnv() {
 #------------------------------------------------------------------------------------------
 printInfo() {
     echo "Project name: ${PROJECTNAME}"
-    echo "Build script for image: ${BUILDSCRIPT}"
     echo "- Directories:"
     echo "    Build directory: ${BUILDDIR}"
     echo "    Build mount directory: ${BUILDDIR_MOUNT}"
+
+    echo "- User information:"
+    echo "    Username: ${USERNAME}"
+    echo "    User group: ${GROUPNAME}"
+    echo "    User id: ${USERID}"
+    echo "    Group id: ${GROUPID}"
+    echo "    User directory: ${USERDIR}"
 
     echo "- Container information:"
     echo "    Image: nymea:${IMAGENAME}"
@@ -348,13 +420,31 @@ printInfo() {
     echo "- Configuration:"
     echo "    Config directory: ${CONFIGDIR}"
     echo "    Config file: ${CONFIG}"
+
+    echo "- Build information:"
+    echo "    Build script: ${BUILDSCRIPT}"
+    echo "    Commit hash: ${COMMITHASH}"
+
 }
 
+#------------------------------------------------------------------------------------------
+finish() {
+    # Change the permissions of the build output
+    if [ -z ${CONTAINERNAME} ]; then
+        return 0
+    fi
 
+    if containerRunning; then
+        execContainerRoot chown -R $USERNAME:$GROUPNAME ${BUILDDIR_MOUNT}
+    fi
+}
 
 #------------------------------------------------------------------------------------------
 # Main
 #------------------------------------------------------------------------------------------
+
+# Clean up if the script exit
+trap finish EXIT
 
 COMMAND=""
 
@@ -365,21 +455,21 @@ loadConfiguration
 while [ "$1" != "" ]; do
     case $1 in
         shell )
-            COMMAND="enterShell";;
+            verifyCommandCount && COMMAND="enterShell";;
         clean )
-            COMMAND="runCleanCommand";;
+            verifyCommandCount && COMMAND="runCleanCommand";;
         start )
-            COMMAND="startContainer";;
+            verifyCommandCount && COMMAND="startContainer";;
         stop )
-            COMMAND="stopContainer";;
+            verifyCommandCount && COMMAND="stopContainer";;
         delete )
-            COMMAND="deleteContainer";;
+            verifyCommandCount && COMMAND="deleteContainer";;
         info )
-            COMMAND="printInfo";;
+            verifyCommandCount && COMMAND="printInfo";;
         create-image )
-            COMMAND="create-image";;
+            verifyCommandCount && COMMAND="create-image";;
         help )
-            usage && exit 0;;
+            verifyCommandCount && COMMAND="help";;
         -s | --script )
             BUILDSCRIPT=$2
             shift;;
@@ -410,13 +500,17 @@ if [ ! -f ${BUILDDIR}/${BUILDSCRIPT} ]; then
     exit 1
 fi
 
+verifyGitRepository
 saveConfiguration
 
 # Init
 PROJECTNAME=$(basename ${BUILDSCRIPT})
 CONTAINERNAME=builder-${PROJECTNAME}-${IMAGENAME}
+BUILDDIR_MOUNT=${USERDIR}/${PROJECTNAME}
+COMMITHASH=$(git rev-parse --short HEAD)
 
 # Execut command
+if [ "${COMMAND}" == "help" ]; then usage; exit 0; fi
 if [ "${COMMAND}" == "enterShell" ]; then createContainer && enterShell; exit 0; fi
 if [ "${COMMAND}" == "runCleanCommand" ]; then runCleanCommand; exit 0; fi
 if [ "${COMMAND}" == "startContainer" ]; then startContainer; exit 0; fi
