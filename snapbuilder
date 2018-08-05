@@ -21,7 +21,12 @@ variables () {
         echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
         exit 1
     fi
-    DISTRO=xenial
+    grep "base: core18" snapcraft.yaml
+    if [ $? -eq 0 ]; then
+        DISTRO=bionic
+    else
+        DISTRO=xenial
+    fi
     PACKAGE=`cat snapcraft.yaml | grep name | head -n 1 | cut -d " " -f 2`
     VERSION=`cat snapcraft.yaml | grep version | head -n 1 | cut -d " " -f 2`
     RED='\033[0;31m'
@@ -72,7 +77,9 @@ new_container () {
 
         lxc start $LXD_CONTAINER
         USERNAME_CONTAINER=`lxc exec $LXD_CONTAINER grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
-        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser $USERNAME_CONTAINER
+        if [ "$USERNAME_CONTAINER" != "" ]; then
+            lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser $USERNAME_CONTAINER
+        fi
         #lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- delgroup $USERNAME_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
