@@ -160,13 +160,13 @@ check_command_parameter_count () {
 exec_container_root () {
     command="$@"
     #echo lxc exec $LXD_CONTAINER "$@"
-    lxc exec $LXD_CONTAINER -- sh -c "cd $SOURCE_PATH_CONTAINER; QT_SELECT=\"qt5\" $command"
+    lxc exec $LXD_CONTAINER -- sh -c "cd $SOURCE_PATH_CONTAINER; $command"
 }
 
 exec_container () {
     command="$@"
     #echo lxc exec $LXD_CONTAINER "$@"
-    lxc exec $LXD_CONTAINER -- su -l -c "cd $SOURCE_PATH_CONTAINER; QT_SELECT=\"qt5\" $command" $USERNAME
+    lxc exec $LXD_CONTAINER -- su -l -c "cd $SOURCE_PATH_CONTAINER; $command" $USERNAME
 }
 
 check_for_container_network() {
