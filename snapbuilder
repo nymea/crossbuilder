@@ -21,8 +21,8 @@ variables () {
         echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
         exit 1
     fi
-    grep "base: core18" snapcraft.yaml
-    if [ $? -eq 0 ]; then
+
+    if grep "base: core18" snapcraft.yaml > /dev/null; then
         DISTRO=bionic
     else
         DISTRO=xenial
