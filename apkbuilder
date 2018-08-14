@@ -123,7 +123,7 @@ exec_container () {
 }
 
 build () {
-    exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-g++; make qmake_all; make -j4"
+    exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-g++ $ADDITIONAL_ARGS; make qmake_all; make -j4"
     exec_container "cd builddir; make INSTALL_ROOT=$MOUNT_POINT/builddir/android-build/ install"
     FILES=`exec_container "cd builddir; find $MOUNT_POINT/builddir -name *deployment-settings.json"`
     echo "Signing with: $1"
@@ -146,6 +146,7 @@ KEYSTORE_PASS=""
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
     VALUE=`echo $1 | awk -F= '{print $2}'`
+    VALUEVALUE=`echo $1 | awk -F= '{print $3}'`
     case $1 in
         -*)
             case $OPTION in
@@ -164,6 +165,9 @@ while [ "$1" != "" ]; do
             ;;
             --keypass | -k )
                 KEYSTORE_PASS=$VALUE
+            ;;
+            --config-args)
+                ADDITIONAL_ARGS="$VALUE=$VALUEVALUE"
             ;;
             *)
                 display_help
