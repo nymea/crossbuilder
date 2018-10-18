@@ -17,18 +17,29 @@ display_help () {
 }
 
 variables () {
-    if ! [ -e snapcraft.yaml ]; then
-        echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
-        exit 1
+
+    SNAPCRAFT_FILE=snapcraft.yaml
+    if [ ! -e $SNAPCRAFT_FILE ]; then
+        if [ ! -d snap ]; then
+            echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
+            exit 1
+        else
+            SNAPCRAFT_FILE=snap/snapcraft.yaml
+            if [ ! -e $SNAPCRAFT_FILE ]; then
+                echo "${NEGATIVE_COLOR}snap/snapcraft.yaml not found.${NC}"
+                exit 1
+            fi
+        fi
+
     fi
 
-    if grep "base: core18" snapcraft.yaml > /dev/null; then
+    if grep "base: core18" $SNAPCRAFT_FILE > /dev/null; then
         DISTRO=bionic
     else
         DISTRO=xenial
     fi
-    PACKAGE=`cat snapcraft.yaml | grep name | head -n 1 | cut -d " " -f 2`
-    VERSION=`cat snapcraft.yaml | grep version | head -n 1 | cut -d " " -f 2`
+    PACKAGE=`cat $SNAPCRAFT_FILE | grep name | head -n 1 | cut -d " " -f 2`
+    VERSION=`cat $SNAPCRAFT_FILE | grep version | head -n 1 | cut -d " " -f 2`
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     LIGHT_RED='\033[1;31m'
@@ -202,16 +213,6 @@ while [ "$1" != "" ]; do
     case $1 in
         -*)
             case $OPTION in
-#            --ubuntu)
-#                TARGET_UBUNTU=$VALUE
-#            ;;
-#            -u)
-#                shift;
-#                TARGET_UBUNTU=$1
-#            ;;
-#            --lxd-image)
-#                LXD_IMAGE=$VALUE
-#            ;;
             --mount-ssh)
                 MOUNT_SSH=1
             ;;
