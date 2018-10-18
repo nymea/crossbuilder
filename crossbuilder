@@ -273,8 +273,17 @@ new_container () {
         if [ -n "$ENCRYPTED_HOME" ] ; then
             lxc config set $LXD_CONTAINER security.privileged true
         else
-            printf "lxc.idmap = g $GROUPID `id --group` 1\nlxc.idmap = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+            # Note: check the lxc version for lxc.id_map vs lxc.idmap
+            LXCVERSION=$(lxc --version)
+            LXCMAJORVERSION=$(echo ${LXCVERSION} | cut -d. -f1)
+            if [ "${LXCMAJORVERSION}" -lt "3" ]; then
+                echo "${POSITIVE_COLOR}Using lxc version 2 compatibility$LXD_IMAGE.${NC}"
+                printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+            else
+                printf "lxc.idmap = g $GROUPID `id --group` 1\nlxc.idmap = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+            fi
         fi
+
         lxc start $LXD_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
