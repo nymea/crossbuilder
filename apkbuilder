@@ -12,7 +12,7 @@ display_help () {
     echo "    clean                     - Clean the snap build dir."
     echo "Options:"
     echo "    --help, -h                - Display this help."
-#    echo "    --mount-ssh     - Mount ~/.ssh into the container (if snapcraft requires ssh keys to$
+    echo "    --mount-ssh               - Mount ~/.ssh from host into the container"
     echo "    --sign=, -s=<keystore>    - sign it with the given keystore"
     echo "    --cert-alias=, -c=<alias> - use the certificate alias for the keytore"
     echo "    --keypass=, -k=<pass>     - provide a password to open the keystore given with --sign"
@@ -77,6 +77,13 @@ new_container() {
         lxc config device add $LXD_CONTAINER gradle_cache_dir_mount disk source=$HOME/.gradle/ path=$HOME/.gradle
     fi
 
+    if [ $MOUNT_SSH -eq 1 ]; then
+        if ! lxc config device get $LXD_CONTAINER ssh_dir_mount disk 2> /dev/null ; then
+            echo "${POSITIVE_COLOR}Mounting ssh config dir ($HOME/.ssh) in container.${NC}"
+            lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
+        fi
+    fi
+
     exec_container_root chgrp -R 150000 /opt/
 
 }
@@ -123,6 +130,14 @@ exec_container () {
 }
 
 build () {
+  if [ -e *.pro ]; then
+    build_qmake
+  else
+    build_npm
+  fi
+}
+
+build_qmake () {
     exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-g++ $ADDITIONAL_ARGS; make qmake_all; make -j4"
     exec_container "cd builddir; make INSTALL_ROOT=$MOUNT_POINT/builddir/android-build/ install"
     FILES=`exec_container "cd builddir; find $MOUNT_POINT/builddir -name *deployment-settings.json"`
@@ -133,6 +148,12 @@ build () {
     else
         exec_container "cd builddir; androiddeployqt --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-26 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --verbose"
     fi
+}
+
+build_npm () {
+    exec_container npm install
+    exec_container ionic cordova platform add android
+    exec_container npm run android:release -- --no-interactive
 }
 
 clean () {
@@ -168,6 +189,9 @@ while [ "$1" != "" ]; do
             ;;
             --config-args)
                 ADDITIONAL_ARGS="$VALUE=$VALUEVALUE"
+            ;;
+            --mount-ssh)
+                MOUNT_SSH=1
             ;;
             *)
                 display_help
