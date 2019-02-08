@@ -99,7 +99,7 @@ new_container () {
         # wait for the container's network connection
         check_for_container_network
         enable_overlay_source
-        exec_container_root rm /var/lib/dpkg/lock
+        exec_container_root rm /var/lib/dpkg/lock || true
         exec_container_root apt update
         exec_container_root rm /var/lib/dpkg/lock || true
         exec_container_root apt install -y sudo debhelper ccache software-properties-common devscripts snapcraft
