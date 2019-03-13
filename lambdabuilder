@@ -455,17 +455,17 @@ cleanAll() {
 #------------------------------------------------------------------------------------------
 testLocal() {
     printGreen "Run local tests..."
-    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-local-result.xml
-    execContainer npm config set color ${COLORS}
-    execContainer npm run test-jenkins test/local-tests.js
+#    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-local-result.xml
+#    execContainer npm config set color ${COLORS}
+#    execContainer npm run test-jenkins test/local-tests.js
 }
 
 #------------------------------------------------------------------------------------------
 testRemote() {
     printGreen "Run remote tests..."
-    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-remote-result.xml
-    execContainer npm config set color ${COLORS}
-    execContainer npm run test-jenkins test/remote-tests.js
+#    TEST_XML_OUTPUT=${BUILDDIR_MOUNT}/test-remote-result.xml
+#    execContainer npm config set color ${COLORS}
+#    execContainer npm run test-jenkins test/remote-tests.js
 }
 
 #------------------------------------------------------------------------------------------
@@ -492,7 +492,18 @@ deployProduction() {
     printOrange "Deploy to production. Use this function with caution!"
     printOrange "======================================================================="
 
-    printGreen "TODO: Deploy to AWS production environemnt"
+    # Deploy
+    printGreen "Serverless information of AWS development environemnt"
+    execContainer serverless info -s prod || true
+
+    printGreen "Deploy to AWS development environemnt"
+    execContainer serverless deploy -s prod
+
+    printGreen "Serverless information of AWS development environemnt"
+    execContainer serverless info -s prod
+
+    build
+    testRemote
 }
 
 #------------------------------------------------------------------------------------------
