@@ -54,7 +54,16 @@ new_container() {
         lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
         lxc init $LXD_IMAGE $LXD_CONTAINER
 
-        printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+        # Note: check the lxc version for lxc.id_map vs lxc.idmap
+        LXCVERSION=$(lxc --version)
+        LXCMAJORVERSION=$(echo ${LXCVERSION} | cut -d. -f1)
+        if [ "${LXCMAJORVERSION}" -lt "3" ]; then
+            echo "${POSITIVE_COLOR}Using lxc version 2 compatibility$LXD_IMAGE.${NC}"
+            printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+        else
+            printf "lxc.idmap = g $GROUPID `id --group` 1\nlxc.idmap = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+        fi
+
 
         lxc start $LXD_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
@@ -65,7 +74,7 @@ new_container() {
     fi
 
     if ! lxc config device get $LXD_CONTAINER current_dir_mount disk 2> /dev/null ; then
-        echo "${POSITIVE_COLOR}Mounting $MOUNTED_DIRECTORY in container.${NC}"
+        echo "${POSITIVE_COLOR}Mounting $MOUNTED_DIRECTORY in container $MOUNT_POINT.${NC}"
         lxc config device add $LXD_CONTAINER current_dir_mount disk source=$MOUNTED_DIRECTORY path=$MOUNT_POINT
     else
         lxc config device set $LXD_CONTAINER current_dir_mount source $MOUNTED_DIRECTORY
@@ -84,7 +93,7 @@ new_container() {
         fi
     fi
 
-    exec_container_root chgrp -R 150000 /opt/
+    exec_container_root chgrp -R 150000 /opt/ || true
 
 }
 
