@@ -1,36 +1,28 @@
 #!/bin/bash -e
 
 PROGRAM_NAME=`basename $0`
+SNAPCRAFT_DIR=.
 
 display_help () {
     echo "Usage: $PROGRAM_NAME [options] [command]"
     echo ""
     echo "Available commands:"
-    echo "    help            - Display this help."
-    echo "    delete          - Delete a container."
-    echo "    shell           - Enter a container."
-    echo "    clean           - Clean the snap build dir."
+    echo "    help                   Display this help."
+    echo "    delete                 Delete a container."
+    echo "    shell                  Enter a container."
+    echo "    clean                  Clean the snap build dir."
     echo "Options:"
-    echo "    --help, -h      - Display this help."
-    echo "    --mount-ssh     - Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
-    echo "    --silo, -s      - Add ci-repo.nymea.io/... to the apt sources"
+    echo "    --help, -h             Display this help."
+    echo "    --mount-ssh            Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
+    echo "    --silo, -s [NAME]      Add the silo ci-repo.nymea.io/[NAME] to the apt sources"
+    echo "    --snapcraft-dir [DIR]  Specify the directory where the snapcraft command should be started"
 }
 
 variables () {
-
-    SNAPCRAFT_FILE=snapcraft.yaml
+    SNAPCRAFT_FILE=${SNAPCRAFT_DIR}/snapcraft.yaml
     if [ ! -e $SNAPCRAFT_FILE ]; then
-        if [ ! -d snap ]; then
-            echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
-            exit 1
-        else
-            SNAPCRAFT_FILE=snap/snapcraft.yaml
-            if [ ! -e $SNAPCRAFT_FILE ]; then
-                echo "${NEGATIVE_COLOR}snap/snapcraft.yaml not found.${NC}"
-                exit 1
-            fi
-        fi
-
+        echo "${NEGATIVE_COLOR}Could not find ${SNAPCRAFT_FILE}${NC}"
+        exit 1
     fi
 
     if grep "base: core18" $SNAPCRAFT_FILE > /dev/null; then
@@ -38,6 +30,7 @@ variables () {
     else
         DISTRO=xenial
     fi
+
     PACKAGE=`cat $SNAPCRAFT_FILE | grep name | head -n 1 | cut -d " " -f 2`
     VERSION=`cat $SNAPCRAFT_FILE | grep version | head -n 1 | cut -d " " -f 2`
     RED='\033[0;31m'
@@ -176,9 +169,15 @@ exec_container_root () {
     lxc exec $LXD_CONTAINER -- sh -c "cd $SOURCE_PATH_CONTAINER; $command"
 }
 
+exec_snapcraft() {
+    params="$@"
+    echo lxc exec $LXD_CONTAINER "$@"
+    lxc exec $LXD_CONTAINER -- su -l -c "cd $SOURCE_PATH_CONTAINER/${SNAPCRAFT_DIR}; snapcraft $params" $USERNAME
+}
+
 exec_container () {
     command="$@"
-    #echo lxc exec $LXD_CONTAINER "$@"
+    echo lxc exec $LXD_CONTAINER "$@"
     lxc exec $LXD_CONTAINER -- su -l -c "cd $SOURCE_PATH_CONTAINER; $command" $USERNAME
 }
 
@@ -200,14 +199,15 @@ check_for_container_network() {
 
 build () {
     exec_container_root rm /var/lib/dpkg/lock || true
-    exec_container snapcraft
+    exec_snapcraft
 }
 
 clean () {
-    exec_container snapcraft clean $@
+    exec_snapcraft clean $@
 }
-
-variables
+########################################################################
+# Main
+########################################################################
 
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
@@ -223,6 +223,10 @@ while [ "$1" != "" ]; do
             ;;
             --silo)
                 SILO_NAME=$VALUE
+            ;;
+            --snapcraft-dir)
+                shift;
+                SNAPCRAFT_DIR=$1
             ;;
             -s)
                 shift;
@@ -246,6 +250,8 @@ while [ "$1" != "" ]; do
         ;;
     esac
 done
+
+variables
 
 COMMAND=$1
 if [ -n "$COMMAND" ] ; then

@@ -156,8 +156,9 @@ createContainer() {
     lxc config device add ${CONTAINERNAME} loop-control unix-char path=/dev/loop-control
 
     # Give permissions to the container
-    lxc config set ${CONTAINERNAME} raw.apparmor "mount,"
+    #lxc config set ${CONTAINERNAME} raw.apparmor "mount,"
     lxc config set ${CONTAINERNAME} security.privileged true
+    lxc config set ${CONTAINERNAME} security.nesting true
 
     startContainer
     waitContainerNetwork
@@ -434,9 +435,9 @@ finish() {
         return 0
     fi
 
-    if containerRunning; then
-        execContainerRoot chown -R $USERNAME:$GROUPNAME ${BUILDDIR_MOUNT}
-    fi
+    #if containerRunning; then
+    #    execContainerRoot chown -R $USERNAME:$GROUPNAME ${BUILDDIR_MOUNT}
+    #fi
 }
 
 #------------------------------------------------------------------------------------------
