@@ -65,16 +65,17 @@ display_help () {
     echo "    run             - Run a command in the container"
     echo ""
     echo "Options:"
-#    echo "  --verbose           - Print verbose information."
-    echo "  --packages           - Packages to deploy [by default: all the ones already installed on device]."
-    echo "  --architecture | -a  - Architecture to build for [defaults to architecture of connected device, if none then armhf]."
-    echo "  --ubuntu | -u        - Version of Ubuntu to build for [defaults to version of connected device, if none then 16.04]."
-    echo "  --lxd-image          - LXD image to use [defaults to the ones provided by jenkins.nymea.io (example: nymea-builder-xenial-amd64-armhf)."
-    echo "  --container-prefix   - LXD container prefix to use"
-    echo "  --password           - User password of the device to deploy to [defaults to 0000]."
-    echo "  --no-deb             - Do not build Debian packages and uses rsync to deploy the build artifacts."
-    echo "  --deploy-path        - When deploying with --no-deb (rsync), installation path for the build artifacts [defaults to /]."
-    echo "  --no-changelog | -c  - Don't bump the changelog"
+#    echo "  --verbose            - Print verbose information."
+    echo "  --packages            - Packages to deploy [by default: all the ones already installed on device]."
+    echo "  --architecture | -a   - Architecture to build for [defaults to architecture of connected device, if none then armhf]."
+    echo "  --ubuntu | -u         - Version of Ubuntu to build for [defaults to version of connected device, if none then 16.04]."
+    echo "  --lxd-image           - LXD image to use [defaults to the ones provided by jenkins.nymea.io (example: nymea-builder-xenial-amd64-armhf)."
+    echo "  --container-prefix    - LXD container prefix to use"
+    echo "  --password            - User password of the device to deploy to [defaults to 0000]."
+    echo "  --no-deb              - Do not build Debian packages and uses rsync to deploy the build artifacts."
+    echo "  --deploy-path         - When deploying with --no-deb (rsync), installation path for the build artifacts [defaults to /]."
+    echo "  --no-changelog | -c   - Don't bump the changelog."
+    echo "  --enable-backports -b - Enable the nymea backports repository before building."
 }
 
 
@@ -315,7 +316,13 @@ fi
 source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 ' >> /etc/profile.d/clickvars.sh"
 
+        if [ $ENABLE_BACKPORTS -eq 1 ]; then
+#            exec_container_root "apt-key adv --keyserver keyserver.ubuntu.com --recv-key D8FBFE357BB5D772"
+            exec_container_root "apt-add-repository 'deb http://repository.nymea.io/ bionic main backports'"
+            exec_container_root "apt-get --yes dist-upgrade"
+        fi
     fi
+
 
     if ! lxc config device get $LXD_CONTAINER current_dir_mount disk 2> /dev/null ; then
         echo "${POSITIVE_COLOR}Mounting $MOUNTED_DIRECTORY in container.${NC}"
@@ -719,6 +726,8 @@ NO_BUMP_CHANGELOG=0
 
 DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
+ENABLE_BACKPORTS=0
+
 # Load run configuration cache (will load TARGET_ARCH and TARGET_UBUNTU)
 CACHE_CONF=.crossbuilder/cache.conf
 if [ -e $CACHE_CONF ]; then
@@ -773,6 +782,12 @@ while [ "$1" != "" ]; do
             ;;
             -c)
                 NO_BUMP_CHANGELOG=1
+            ;;
+            --enable-backports)
+                ENABLE_BACKPORTS=1
+            ;;
+            -b)
+                ENABLE_BACKPORTS=1
             ;;
             *)
                 display_help
