@@ -1,0 +1,450 @@
+#!/bin/bash -e
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#                                                                         #
+#  Copyright (C) 2019 Simon Stürz <simon.stuerz@guh.io>                   #
+#                                                                         #
+#  This file is part of ubuntu-core-builder.                              #
+#                                                                         #
+#  ubuntu-core-builder is free software: you can redistribute it and/or   #
+#  modif it under the terms of the GNU General Public License as          #
+#  published by the Free Software Foundation, version 2 of the License.   #
+#                                                                         #
+#  ubuntu-core-builder is distributed in the hope that it will be useful, #
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of         #
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the           #
+#  GNU General Public License for more details.                           #
+#                                                                         #
+#  You should have received a copy of the GNU General Public License      #
+#  along with ubuntu-core-builder. If not,                                #
+#  see <http://www.gnu.org/licenses/>.                                    #
+#                                                                         #
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+
+VERSION=0.1.0
+APPLICATION=$(basename $0)
+
+#------------------------------------------------------------------------------------------
+function usage() {
+  cat <<EOF
+Usage: $(basename $0) [OPTIONS] [COMMAND]
+
+This tool should help building ubuntu core images inside an lxd container.
+
+Copyright © 2019 Simon Stürz <simon.stuerz@guh.io>
+Version: ${VERSION}
+
+Note: Only one command is accepted each call.
+
+COMMANDS:
+  shell                   Log into shell from builder container
+  start                   Start the builder container
+  stop                    Stop the builder container
+  delete                  Delete the container
+  clean                   Clean all build and test data
+  help                    Show this help message
+  create-image            Create the lxc build image for the ubuntu-core-builder
+
+OPTIONS:
+  -s, --ssh-dir [DIR]     The directory where the ssh configration and credentials are located. Default $HOME/.ssh
+  --no-colors             Disable colorfull output
+  -h, --help              Show this help message
+  -v, --version           Show the version of the tool
+
+EOF
+}
+
+#------------------------------------------------------------------------------------------
+# bash colors
+BASH_GREEN="\e[1;32m"
+BASH_ORANGE="\e[33m"
+BASH_RED="\e[1;31m"
+BASH_NORMAL="\e[0m"
+
+printGreen() {
+    if ${COLORS}; then
+        echo -e "${BASH_GREEN}[+] Ubuntu core builder: $1${BASH_NORMAL}"
+    else
+        echo -e "[+] Ubuntu core builder: $1"
+    fi
+}
+
+printOrange() {
+    if ${COLORS}; then
+        echo -e "${BASH_ORANGE}[-] Ubuntu core builder: $1${BASH_NORMAL}"
+    else
+        echo -e "[-] Ubuntu core builder: $1"
+    fi
+}
+
+printRed() {
+    if ${COLORS}; then
+        echo -e "${BASH_RED}[!] Ubuntu core builder: $1${BASH_NORMAL}"
+    else
+        echo -e "[!] Ubuntu core builder: $1"
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+createContainer() {
+    if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
+        #printOrange "--> Container ${CONTAINERNAME} already exists."
+        startContainer
+        return 0
+    fi
+
+    printGreen "Create lxc container ${CONTAINERNAME}"
+    lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
+
+    #lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
+    lxc init nymea-ubuntu-core-builder ${CONTAINERNAME}
+
+    # Give permissions to the container
+    lxc config set ${CONTAINERNAME} raw.apparmor "mount,"
+#    lxc config set ${CONTAINERNAME} security.nesting true
+    lxc config set ${CONTAINERNAME} security.privileged true
+#    lxc config set ${CONTAINERNAME} lxc.cgroup.devices.allow = c 10:137 rwm # loop-control
+#    lxc config set ${CONTAINERNAME} lxc.cgroup.devices.allow = b 7:* rwm    # loop*
+
+    # Add loop devices
+    lxc config device add ${CONTAINERNAME} loop0 unix-block path=/dev/loop0
+    lxc config device add ${CONTAINERNAME} loop1 unix-block path=/dev/loop1
+    lxc config device add ${CONTAINERNAME} loop2 unix-block path=/dev/loop2
+    lxc config device add ${CONTAINERNAME} loop3 unix-block path=/dev/loop3
+    lxc config device add ${CONTAINERNAME} loop4 unix-block path=/dev/loop4
+    lxc config device add ${CONTAINERNAME} loop5 unix-block path=/dev/loop5
+    lxc config device add ${CONTAINERNAME} loop6 unix-block path=/dev/loop6
+    lxc config device add ${CONTAINERNAME} loop7 unix-block path=/dev/loop7
+    lxc config device add ${CONTAINERNAME} loop-control unix-char path=/dev/loop-control
+
+    # Start container
+    startContainer
+    waitContainerNetwork
+
+    # Set up user
+    printGreen "Create user $USERNAME in the container"
+    USERNAME_CONTAINER=`lxc exec ${CONTAINERNAME} grep ":$USERID:" /etc/passwd | cut -f 1 -d ":"`
+    if [ ! -z "$USERNAME_CONTAINER" ]; then
+        # Note remove the current container user only if the user id is the same
+        printGreen "Removing user in container with the same user id: $USERNAME_CONTAINER $USERID"
+        lxc exec ${CONTAINERNAME} -- userdel $USERNAME_CONTAINER -f
+    fi
+
+    printGreen "Create user $USERNAME in the container"
+    lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME ${CONTAINERNAME} -- addgroup --gid $GROUPID $GROUPNAME
+    lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID ${CONTAINERNAME} -- adduser --disabled-password \
+             --gecos "" --uid $USERID --gid $GROUPID $USERNAME
+
+    execContainerRoot adduser $USERNAME sudo
+    execContainerRoot passwd --delete $USERNAME
+
+    # Mount source directory into folder
+    if ! lxc config device get ${CONTAINERNAME} current_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting build directory ${BUILDDIR} into container."
+        lxc config device add ${CONTAINERNAME} current_dir_mount disk source=$BUILDDIR path=$BUILDDIR_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} current_dir_mount source $BUILDDIR
+    fi
+
+    # Mount ssh directory into container
+    if ! lxc config device get ${CONTAINERNAME} ssh_dir_mount disk 2> /dev/null ; then
+        printGreen "Mounting ssh folder ${SSH_DIRECTOY} into container."
+        lxc config device add ${CONTAINERNAME} ssh_dir_mount disk source=$SSH_DIRECTOY path=$SSH_DIRECTOY_MOUNT
+    else
+        lxc config device set ${CONTAINERNAME} ssh_dir_mount source $SSH_DIRECTOY
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+# Note: this is only needed if you want to create the base
+createBaseImage() {
+    printGreen "Create base image for ubuntu-core-builder:"
+
+    CONTAINERNAME=${IMAGENAME}-base
+
+    # Check if there is an image
+    if lxc image info ${IMAGENAME} > /dev/null 2>&1; then
+        printRed "There is already an image with the name ${IMAGENAME}. Please rename or delete the existing image."
+        exit 1
+    fi
+
+    # Check if there is a container
+    if lxc info ${CONTAINERNAME} > /dev/null 2>&1 ; then
+        printRed "--> Container ${CONTAINERNAME} already exists. Please rename or delete the existing container."
+        return 1
+    fi
+
+    # Get the bionic image
+    printGreen "Create base container ${CONTAINERNAME}"
+    lxc init ubuntu:18.04 ${CONTAINERNAME}
+
+    startContainer
+    waitContainerNetwork
+
+    # Update
+    execContainerRoot apt-get -y update
+    execContainerRoot apt-get -y upgrade
+
+    # Install packages
+    execContainerRoot apt-get -y install python unzip snapcraft sudo socat git bc kmod cpio bison flex gcc-arm-linux-gnueabi build-essential u-boot-tools
+    execContainerRoot snap install --classic ubuntu-image --edge
+
+    # Clean up container
+    execContainerRoot apt -y autoremove
+    execContainerRoot apt -y clean
+
+    # Create the image out of this container
+    stopContainer
+    printGreen "Create image ${IMAGENAME} out of the container ${CONTAINERNAME}"
+    lxc publish ${CONTAINERNAME} --alias ${IMAGENAME}
+    deleteContainer
+    lxc image list | grep ${IMAGENAME}
+}
+
+#------------------------------------------------------------------------------------------
+waitContainerNetwork() {
+    printGreen "Wait for container getting online..."
+    NETWORK_UP=0
+    for i in `seq 1 20`; do
+        if lxc info ${CONTAINERNAME} | grep -e "eth0.*inet\b" > /dev/null 2>&1 ; then
+            NETWORK_UP=1
+            printGreen "Container is online"
+            break
+        fi
+        sleep 1
+    done
+
+    if [ $NETWORK_UP -ne 1 ] ; then
+        printRed "Container is not connected to the Internet."
+        exit 1
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+waitDpkgAvailable() {
+    printGreen "Wait for container dpkg getting available..."
+    DPKG_AVAILABLE=0
+
+    for i in `seq 1 60`
+    do
+        #echo "${ERROR_COLOR} /var/lib/dpkg/lock exists... Waiting for it to disappear...${NC}"
+        if execContainerRoot test ! -e /var/lib/dpkg/lock; then
+            DPKG_AVAILABLE=1
+            printGreen "The update manager is available now."
+            break
+        fi
+        sleep 1
+    done
+    if [ $DPKG_AVAILABLE -ne 1 ] ; then
+        #echo "${ERROR_COLOR} /var/lib/dpkg/lock still exists after one minute. Assuming it is stale. Deleting it...${NC}"
+        execContainerRoot rm /var/lib/dpkg/lock
+    fi
+}
+
+
+#------------------------------------------------------------------------------------------
+containerRunning() {
+    lxc list | grep ${CONTAINERNAME} | grep RUNNING > /dev/null 2>&1
+    return $?
+}
+
+#------------------------------------------------------------------------------------------
+startContainer() {
+    if ! containerRunning; then
+        printGreen "Start container ${CONTAINERNAME}"
+        lxc start ${CONTAINERNAME};
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+stopContainer() {
+    printGreen "Stop container ${CONTAINERNAME}"
+    lxc stop ${CONTAINERNAME} --force || true
+}
+
+#------------------------------------------------------------------------------------------
+deleteContainer() {
+    printGreen "Delete container ${CONTAINERNAME}"
+    lxc delete ${CONTAINERNAME} --force || true
+}
+
+#------------------------------------------------------------------------------------------
+enterShell() {
+    printGreen "Enter shell in container ${CONTAINERNAME}"
+    lxc exec ${CONTAINERNAME} -- su --login ${USERNAME}
+    #lxc exec ${CONTAINERNAME} bash
+}
+
+#------------------------------------------------------------------------------------------
+execContainerRoot() {
+    EXECUTION="$@"
+    #printGreen "Execute command in container as root: $ENVIRONMENT $EXECUTION"
+    #printGreen "Environment: $ENVIRONMENT"
+    lxc exec ${CONTAINERNAME} -- su -c "$EXECUTION"
+}
+
+#------------------------------------------------------------------------------------------
+execContainer() {
+    EXECUTION="$@"
+    #printGreen "Execute command in container: $EXECUTION"
+    lxc exec ${CONTAINERNAME} -- su -l -c \
+    "cd $BUILDDIR_MOUNT; $EXECUTION" $USERNAME
+}
+
+#------------------------------------------------------------------------------------------
+build() {
+    printGreen "Building ${PROJECTNAME} (commit: ${COMMITHASH})"
+    execContainer make
+}
+
+#------------------------------------------------------------------------------------------
+cleanBuild() {
+    printGreen "Clean build"
+    execContainer make clean
+}
+
+#------------------------------------------------------------------------------------------
+cleanAll() {
+    printGreen "Clean all data"
+    execContainer make distclean
+}
+
+#------------------------------------------------------------------------------------------
+initEnv() {
+
+    PROJECTNAME=$(basename `git rev-parse --show-toplevel`)
+    COMMITHASH=$(git rev-parse --short HEAD)
+
+    # Container user
+    USERNAME=`id --user --name`
+    GROUPNAME=$USERNAME
+    USERID=`id --user`
+    GROUPID=`id --group`
+
+    # Directories
+    BUILDDIR=$(pwd)
+    USERDIR=/home/${USERNAME}
+    BUILDDIR_MOUNT=${USERDIR}/${PROJECTNAME}
+    SSH_DIRECTOY="/home/${USERNAME}/.ssh"
+    SSH_DIRECTOY_MOUNT="/home/${USERNAME}/.ssh"
+
+    # Container stufff
+    IMAGENAME=nymea-ubuntu-core-builder
+    CONTAINERNAME=builder-${PROJECTNAME}-${IMAGENAME}
+}
+
+#------------------------------------------------------------------------------------------
+printInfo() {
+    echo "Project name: ${PROJECTNAME}"
+    echo "- Directories:"
+    echo "    Build directory: ${BUILDDIR}"
+    echo "    Build mount directory: ${BUILDDIR_MOUNT}"
+    echo "    SSH directoriy: ${SSH_DIRECTOY}"
+    echo "    SSH mount directoriy: ${SSH_DIRECTOY_MOUNT}"
+
+    echo "- User information:"
+    echo "    Username: ${USERNAME}"
+    echo "    User group: ${GROUPNAME}"
+    echo "    User id: ${USERID}"
+    echo "    Group id: ${GROUPID}"
+    echo "    User directory: ${USERDIR}"
+
+    echo "- Container information:"
+    echo "    Image: nymea:${IMAGENAME}"
+    echo "    Container: ${CONTAINERNAME}"
+
+    echo "- Build information:"
+    echo "    Commit hash: ${COMMITHASH}"
+}
+
+#------------------------------------------------------------------------------------------
+verifyGitRepository() {
+    # Verify we have a git repository
+    if ! git status > /dev/null 2>&1 ; then
+        printRed "Could not find any git repositor in this folder. Please run $(basename $0) in the source directory of the build scripts."
+        exit 1
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+verifyCommandCount() {
+    # Check if there is already a command specified
+    if [ "${COMMAND}" != "" ]; then
+        printRed "Multiple commands passed. Please pass only one command to ${APPLICATION}."
+        #usage
+        exit 1
+    fi
+}
+
+#------------------------------------------------------------------------------------------
+finish() {
+    # Kill all child processes
+    kill 0
+}
+
+#------------------------------------------------------------------------------------------
+# Main
+#------------------------------------------------------------------------------------------
+
+# Clean up if the script exit
+trap finish EXIT
+
+initEnv
+
+COMMAND=""
+
+while [ "$1" != "" ]; do
+    case $1 in
+        shell )
+            verifyCommandCount && COMMAND="enterShell";;
+        clean )
+            verifyCommandCount && COMMAND="cleanAll";;
+        start )
+            verifyCommandCount && COMMAND="startContainer";;
+        stop )
+            verifyCommandCount && COMMAND="stopContainer";;
+        delete )
+            verifyCommandCount && COMMAND="deleteContainer";;
+        info )
+            verifyCommandCount && COMMAND="printInfo";;
+        help )
+            verifyCommandCount && COMMAND="usage";;
+        create-image )
+            verifyCommandCount && COMMAND="create-image";;
+        -s | --ss-dir )
+            SSH_DIRECTOY=$2
+            shift;;
+        -n | --no-colors )
+            COLORS=false;;
+        -h | --help )
+            usage && exit 0;;
+        -v | --version )
+            echo ${VERSION} && exit 0;;
+        * )
+            usage && exit 1;;
+    esac
+    shift
+done
+
+# Note: these commands should always work
+if [ "${COMMAND}" == "create-image" ]; then createBaseImage; exit 0; fi
+if [ "${COMMAND}" == "usage" ]; then usage; exit 0; fi
+
+# Init configurations
+verifyGitRepository
+
+# Note: these commands should only work in a valid source directory
+# Execute the command
+if [ "${COMMAND}" == "enterShell" ]; then createContainer && enterShell; exit 0; fi
+if [ "${COMMAND}" == "cleanAll" ]; then cleanAll; exit 0; fi
+if [ "${COMMAND}" == "startContainer" ]; then startContainer; exit 0; fi
+if [ "${COMMAND}" == "stopContainer" ]; then stopContainer; exit 0; fi
+if [ "${COMMAND}" == "deleteContainer" ]; then deleteContainer; exit 0; fi
+if [ "${COMMAND}" == "printInfo" ]; then printInfo; exit 0; fi
+
+# If no command passed, just build
+printInfo
+createContainer
+build
