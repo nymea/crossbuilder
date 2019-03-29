@@ -1,0 +1,13 @@
+# ubuntu-core-builder(1) completion                                       -*- shell-script -*-
+
+_ubuntu-core-builder() 
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="shell clean stop start delete help create-image -s --ssh-dir -h --help --no-colors -v --version"
+
+    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+}
+complete -F _ubuntu-core-builder ubuntu-core-builder
