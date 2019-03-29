@@ -98,15 +98,12 @@ createContainer() {
     printGreen "Create lxc container ${CONTAINERNAME}"
     lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
 
-    #lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
-    lxc init nymea-ubuntu-core-builder ${CONTAINERNAME}
+    lxc init nymea:${IMAGENAME} ${CONTAINERNAME}
+    #lxc init nymea-ubuntu-core-builder ${CONTAINERNAME}
 
     # Give permissions to the container
     lxc config set ${CONTAINERNAME} raw.apparmor "mount,"
-#    lxc config set ${CONTAINERNAME} security.nesting true
     lxc config set ${CONTAINERNAME} security.privileged true
-#    lxc config set ${CONTAINERNAME} lxc.cgroup.devices.allow = c 10:137 rwm # loop-control
-#    lxc config set ${CONTAINERNAME} lxc.cgroup.devices.allow = b 7:* rwm    # loop*
 
     # Add loop devices
     lxc config device add ${CONTAINERNAME} loop0 unix-block path=/dev/loop0
