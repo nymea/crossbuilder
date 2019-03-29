@@ -40,3 +40,10 @@ Depends: ${shlibs:Depends},
          socat,
 Description: LXD based node aws lambda function builder
   Build node lambda function with different node version with ease and deploy them.
+
+Package: ubuntu-core-builder
+Architecture: all
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: LXD based ubuntu-core image builder
+  Build ubuntu-core images inside a lxc container.

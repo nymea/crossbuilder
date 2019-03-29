@@ -1,0 +1,3 @@
+ubuntu-core-builder /usr/bin/
+data/bash-completion/ubuntu-core-builder usr/share/bash-completion/completions/
+
