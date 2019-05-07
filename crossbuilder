@@ -80,8 +80,6 @@ display_help () {
 
 
 exec_device () {
-    #echo adb shell "$@"
-#    adb shell "$@"
     SSH_ARGS=""
     if [ "$DEPLOY_KEY" != "" ]; then
         SSH_ARGS="$SSH_ARGS -i $DEPLOY_KEY"
@@ -568,7 +566,6 @@ deploy_deb () {
     # tranfer debian packages to device
     exec_device mkdir -p /tmp/repo
     copy_to_device $DEBS_TARBALL /tmp/repo
-#    adb push $DEBS_TARBALL /tmp/repo/
     exec_device "cd /tmp/repo && tar xvf /tmp/repo/$DEBS_TARBALL && rm -f /tmp/repo/$DEBS_TARBALL_ROOT*"
 
     # install debian packages on device
@@ -590,8 +587,9 @@ deploy_deb () {
             exec_device "printf 'deb file:/tmp/repo/ /\n' > /tmp/repo/sources.list"
             exec_device "cp /etc/apt/sources.list /tmp/repo/all.list"
             exec_device "cat /tmp/repo/sources.list >> /tmp/repo/all.list"
-            SERIES=$(adb shell lsb_release -cs | tr -d '\r')
-            exec_device "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000\n\nPackage: *\nPin: release a=$SERIES*\nPin-Priority: 50' | SUDO_ASKPASS=/tmp/askpass.sh sudo -A tee /etc/apt/preferences.d/localrepo.pref"
+# FIXME: Is this still needed? Needs to be transitioned from ADB to SSH still
+#            SERIES=$(adb shell lsb_release -cs | tr -d '\r')
+#            exec_device "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000\n\nPackage: *\nPin: release a=$SERIES*\nPin-Priority: 50' | SUDO_ASKPASS=/tmp/askpass.sh sudo -A tee /etc/apt/preferences.d/localrepo.pref"
 #            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A apt-get update
         else
             exec_device /tmp/repo/$CREATE_REPO_SCRIPT /tmp/repo
@@ -625,12 +623,6 @@ deploy_make_install () {
 }
 
 deploy_to_device () {
-#    DEVICE_STATE=`adb get-state`
-#    if [ "$DEVICE_STATE" != "device" ] ; then
-#        echo "${ERROR_COLOR}No device connected to deploy to.${NC}"
-#        exit 1
-#    fi;
-
     if test -z "$DEPLOY_IP" ; then
         echo "${POSITIVE_COLOR}If a config named $DEPLOY_CONF existed, the packages would be deployed to a device.${NC}"
         exit 0 # exiting with status ok even though we didn't deploy, but as there is no config we can assume it didn't fail, just wasn't needed
@@ -668,7 +660,7 @@ deploy_to_device () {
     # execute post deploy
     if test -e $SOURCE_PATH_LOCAL/$POST_DEPLOY_SCRIPT ; then
         echo "${POSITIVE_COLOR}Execute project specific post deploy script ($POST_DEPLOY_SCRIPT).${NC}"
-        adb push $SOURCE_PATH_LOCAL/$POST_DEPLOY_SCRIPT /tmp
+        copy_to_device $SOURCE_PATH_LOCAL/$POST_DEPLOY_SCRIPT /tmp
         exec_device sh /tmp/$(basename $POST_DEPLOY_SCRIPT)
     else
         echo "${POSITIVE_COLOR}If a script named $POST_DEPLOY_SCRIPT existed, it would be executed on device after every deploy.${NC}"
@@ -681,9 +673,6 @@ if ! which dpkg > /dev/null ; then
 fi
 if ! which dpkg-parsechangelog > /dev/null ; then
     MISSING_PACKAGES="dpkg-dev $MISSING_PACKAGES"
-fi
-if ! which adb > /dev/null ; then
-    MISSING_PACKAGES="android-tools-adb $MISSING_PACKAGES"
 fi
 
 if [ ! -z "$MISSING_PACKAGES" ] ; then
