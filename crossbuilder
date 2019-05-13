@@ -325,8 +325,9 @@ source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 
         for i in $(seq 1 ${#ADDITIONAL_REPOS[*]}); do
             REPO="${ADDITIONAL_REPOS[$((i-1))]}"
-            echo "Adding repository: $REPO"
-            exec_container_root "apt-add-repository '$REPO'"
+            REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
+            echo "Adding repository: $REPO_UNESCAPED"
+            exec_container_root "apt-add-repository '$REPO_UNESCAPED'"
             exec_container_root "apt-get --yes update"
         done
     fi
