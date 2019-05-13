@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2016 Canonical Ltd.
 #
@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Author: Florian Boucault <florian.boucault@canonical.com>
+#         Michael Zanetti <michael.zanetti@nymea.io>
 
 # TODO:
 # NOW
@@ -75,7 +76,7 @@ display_help () {
     echo "  --no-deb              - Do not build Debian packages and uses rsync to deploy the build artifacts."
     echo "  --deploy-path         - When deploying with --no-deb (rsync), installation path for the build artifacts [defaults to /]."
     echo "  --no-changelog | -c   - Don't bump the changelog."
-    echo "  --enable-backports -b - Enable the nymea backports repository before building."
+    echo "  --add-repository | -r - Add repository. This is a string understood by apt-add-repository. Can be given multiple times."
 }
 
 
@@ -84,7 +85,7 @@ exec_device () {
     if [ "$DEPLOY_KEY" != "" ]; then
         SSH_ARGS="$SSH_ARGS -i $DEPLOY_KEY"
     fi
-    ssh $SSH_ARGS $DEPLOY_USER@$DEPLOY_IP $@
+    ssh $SSH_ARGS $DEVICE_USER@$DEVICE_IP $@
 }
 
 copy_to_device() {
@@ -92,7 +93,7 @@ copy_to_device() {
     if [ "$DEPLOY_KEY" != "" ]; then
         SSH_ARGS="$SSH_ARGS -i $DEPLOY_KEY"
     fi
-    scp $SSH_ARGS $1 $DEPLOY_USER@$DEPLOY_IP:$2
+    scp $SSH_ARGS $1 $DEVICE_USER@$DEVICE_IP:$2
 }
 
 copy_from_device() {
@@ -100,7 +101,7 @@ copy_from_device() {
     if [ "$DEPLOY_KEY" != "" ]; then
         SSH_ARGS="$SSH_ARGS -i $DEPLOY_KEY"
     fi
-    scp $SSH_ARGS $DEPLOY_USER@$DEPLOY_IP:$1 $2
+    scp $SSH_ARGS $DEVICE_USER@$DEVICE_IP:$1 $2
 }
 
 exec_container_root () {
@@ -174,6 +175,14 @@ variables () {
     DEPLOY_CONF=.crossbuilder/deploy.conf
     if [ -e $DEPLOY_CONF ]; then
         . $DEPLOY_CONF
+    else
+        echo "# Device IP and ssh user to be used." >> .crossbuilder/deploy.conf
+        echo "#DEVICE_IP=" > .crossbuilder/deploy.conf
+        echo "#DEVICE_USER=" >> .crossbuilder/deploy.conf
+        echo "# Required for sudo permissions to install packages." >> .crossbuilder/deploy.conf
+        echo "#DEVICE_PASSWORD=" >> .crossbuilder/deploy.conf
+        echo "# Optional if ssh is by key only and key can't be found in ~/.ssh:" >> .crossbuilder/deploy.conf
+        echo "#DEVICE_KEY=" >> .crossbuilder/deploy.conf
     fi
     HOST_FARCH=$(dpkg-architecture -f -a$TARGET_ARCH -qDEB_BUILD_MULTIARCH)
     TARGET_FARCH=$(dpkg-architecture -f -a$TARGET_ARCH -qDEB_HOST_MULTIARCH)
@@ -314,13 +323,13 @@ fi
 source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 ' >> /etc/profile.d/clickvars.sh"
 
-        if [ $ENABLE_BACKPORTS -eq 1 ]; then
-#            exec_container_root "apt-key adv --keyserver keyserver.ubuntu.com --recv-key D8FBFE357BB5D772"
-            exec_container_root "apt-add-repository 'deb http://repository.nymea.io/ ${TARGET_UBUNTU} main backports'"
-            exec_container_root "apt-get --yes dist-upgrade"
-        fi
+        for i in $(seq 1 ${#ADDITIONAL_REPOS[*]}); do
+            REPO="${ADDITIONAL_REPOS[$((i-1))]}"
+            echo "Adding repository: $REPO"
+            exec_container_root "apt-add-repository '$REPO'"
+            exec_container_root "apt-get --yes update"
+        done
     fi
-
 
     if ! lxc config device get $LXD_CONTAINER current_dir_mount disk 2> /dev/null ; then
         echo "${POSITIVE_COLOR}Mounting $MOUNTED_DIRECTORY in container.${NC}"
@@ -587,18 +596,17 @@ deploy_deb () {
             exec_device "printf 'deb file:/tmp/repo/ /\n' > /tmp/repo/sources.list"
             exec_device "cp /etc/apt/sources.list /tmp/repo/all.list"
             exec_device "cat /tmp/repo/sources.list >> /tmp/repo/all.list"
-# FIXME: Is this still needed? Needs to be transitioned from ADB to SSH still
-#            SERIES=$(adb shell lsb_release -cs | tr -d '\r')
-#            exec_device "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000\n\nPackage: *\nPin: release a=$SERIES*\nPin-Priority: 50' | SUDO_ASKPASS=/tmp/askpass.sh sudo -A tee /etc/apt/preferences.d/localrepo.pref"
-#            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A apt-get update
+            SERIES=$(exec_device lsb_release -cs | tr -d '\r')
+            exec_device "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000\n\nPackage: *\nPin: release a=$SERIES*\nPin-Priority: 50' | SUDO_ASKPASS=/tmp/askpass.sh sudo -A tee /etc/apt/preferences.d/localrepo.pref"
+            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A apt-get update
         else
             exec_device /tmp/repo/$CREATE_REPO_SCRIPT /tmp/repo
         fi;
 
-#        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 50' /etc/apt/preferences.d/extra-ppas.pref"
+        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 50' /etc/apt/preferences.d/extra-ppas.pref"
         exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A  apt-get update -o Dir::Etc::sourcelist="/tmp/repo/sources.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
         exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A apt-get dist-upgrade -o Dir::Etc::sourcelist="/tmp/repo/all.list" --yes --force-yes
-#        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 1001' /etc/apt/preferences.d/extra-ppas.pref"
+        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 1001' /etc/apt/preferences.d/extra-ppas.pref"
     fi;
 }
 
@@ -623,12 +631,12 @@ deploy_make_install () {
 }
 
 deploy_to_device () {
-    if test -z "$DEPLOY_IP" ; then
-        echo "${POSITIVE_COLOR}If a config named $DEPLOY_CONF existed, the packages would be deployed to a device.${NC}"
+    if test -z "$DEVICE_IP" ; then
+        echo "${POSITIVE_COLOR}Edit $DEPLOY_CONF to set up deployment of the packages to a device.${NC}"
         exit 0 # exiting with status ok even though we didn't deploy, but as there is no config we can assume it didn't fail, just wasn't needed
     fi
 
-    ping -c 1 $DEPLOY_IP
+    ping -c 1 $DEVICE_IP
     DEVICE_STATE=$?
     if [ $DEVICE_STATE -ne 0 ] ; then
         echo "${ERROR_COLOR}No device connected to deploy to.${NC}"
@@ -640,16 +648,16 @@ deploy_to_device () {
     exec_device chmod +x /tmp/askpass.sh
 
     # check password is correct
-#    exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A touch /tmp/password_ok
-#    if adb pull /tmp/password_ok ; then
-#        rm -f password_ok
-#        exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A rm -f /tmp/password_ok
-#    else
-#        echo "${ERROR_COLOR}Device password incorrect. Use --password to pass the correct one or write it in $DEVICE_PASSWORD_FILE.${NC}"
-#        exit 1
-#    fi
+    exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A touch /tmp/password_ok
+    if copy_from_device /tmp/password_ok . ; then
+        rm -f password_ok
+        exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A rm -f /tmp/password_ok
+    else
+        echo "${ERROR_COLOR}Device password incorrect. Use --password to pass the correct one or write it in $DEPLOY_CONF.${NC}"
+        exit 1
+    fi
 
-#    exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A mount -o remount,rw /
+    exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A mount -o remount,rw /
 
     if [ -n "$NO_DEB" ] ; then
         deploy_make_install
@@ -715,7 +723,7 @@ NO_BUMP_CHANGELOG=0
 
 DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
-ENABLE_BACKPORTS=0
+ADDITIONAL_REPOS=()
 
 # Load run configuration cache (will load TARGET_ARCH and TARGET_UBUNTU)
 CACHE_CONF=.crossbuilder/cache.conf
@@ -772,11 +780,13 @@ while [ "$1" != "" ]; do
             -c)
                 NO_BUMP_CHANGELOG=1
             ;;
-            --enable-backports)
-                ENABLE_BACKPORTS=1
+            --add-repository)
+                shift
+                ADDITIONAL_REPOS+=("$1")
             ;;
-            -b)
-                ENABLE_BACKPORTS=1
+            -r)
+                shift
+                ADDITIONAL_REPOS+=("$1")
             ;;
             *)
                 display_help
