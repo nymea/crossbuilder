@@ -6,7 +6,7 @@ _snapbuilder()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="help delete shell clean --help -h --mount-ssh --silo -s"
+    opts="help delete shell clean --help -h --mount-ssh --silo -s --snapcraft-dir"
 
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
 }
