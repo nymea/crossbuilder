@@ -293,6 +293,7 @@ new_container () {
         fi
 
         lxc start $LXD_CONTAINER
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser $USERNAME || true
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- delgroup $GROUPNAME || true
         lxc exec $LXD_CONTAINER -- rm -rf /home/ubuntu
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
