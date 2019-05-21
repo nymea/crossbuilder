@@ -300,7 +300,6 @@ new_container () {
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
         lxc exec --env USERNAME=$USERNAME $LXD_CONTAINER -- usermod -aG sudo $USERNAME
-        exec_container_root "sed -i 's/ENV_PATH.*PATH=/ENV_PATH\tPATH=\/usr\/lib\/ccache:/' /etc/login.defs"
         # wait for the container's network connection
         check_for_container_network
         check_for_dpkg_available
@@ -324,8 +323,10 @@ else
   export CC=$TARGET_FARCH-gcc\n\
   export CXX=$TARGET_FARCH-g++\n\
 fi
+export PATH="/usr/lib/ccache:$PATH"
+
 source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
-' >> /etc/profile.d/clickvars.sh"
+' >> /etc/profile.d/crossbuilder.sh"
 
         for i in $(seq 1 ${#ADDITIONAL_REPOS[*]}); do
             REPO="${ADDITIONAL_REPOS[$((i-1))]}"
