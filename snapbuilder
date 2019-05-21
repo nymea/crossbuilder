@@ -6,14 +6,15 @@ display_help () {
     echo "Usage: $PROGRAM_NAME [options] [command]"
     echo ""
     echo "Available commands:"
-    echo "    help            - Display this help."
-    echo "    delete          - Delete a container."
-    echo "    shell           - Enter a container."
-    echo "    clean           - Clean the snap build dir."
+    echo "    help                - Display this help."
+    echo "    delete              - Delete a container."
+    echo "    shell               - Enter a container."
+    echo "    clean               - Clean the snap build dir."
     echo "Options:"
-    echo "    --help, -h      - Display this help."
-    echo "    --mount-ssh     - Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
-    echo "    --silo, -s      - Add ci-repo.nymea.io/... to the apt sources"
+    echo "    --help, -h          - Display this help."
+    echo "    --mount-ssh         - Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
+    echo "    --silo, -s          - Add ci-repo.nymea.io/... to the apt sources"
+    echo "  --container-prefix    - LXD container prefix to use"
 }
 
 variables () {
@@ -51,7 +52,10 @@ variables () {
     HOST_ARCH=`dpkg --print-architecture`
     LXD_IMAGE_NAME=nymea-snap-builder-$DISTRO-$HOST_ARCH
     LXD_IMAGE=nymea:$LXD_IMAGE_NAME
-    LXD_CONTAINER=builder-$CONTAINER_PREFIX$PACKAGE-$LXD_IMAGE_NAME
+    LXD_CONTAINER=builder-$PACKAGE-$LXD_IMAGE_NAME
+    if [ ! -z $CONTAINER_PREFIX ]; then
+        LXD_CONTAINER=$CONTAINER_PREFIX-$LXD_CONTAINER
+    fi
     if stat --file-system $HOME | grep ecrypt ; then
         ENCRYPTED_HOME=1
     fi
@@ -207,8 +211,6 @@ clean () {
     exec_container snapcraft clean $@
 }
 
-variables
-
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
     VALUE=`echo $1 | awk -F= '{print $2}'`
@@ -246,6 +248,8 @@ while [ "$1" != "" ]; do
         ;;
     esac
 done
+
+variables
 
 COMMAND=$1
 if [ -n "$COMMAND" ] ; then
