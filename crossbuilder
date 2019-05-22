@@ -190,6 +190,7 @@ variables () {
     if [ -z "$DEB_BUILD_PROFILES" ]; then
         DEB_BUILD_PROFILES='nocheck nodoc'
     fi
+    DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES noautodbgsym"
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
 }
 
