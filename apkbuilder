@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 PROGRAM_NAME=`basename $0`
 
@@ -13,6 +13,7 @@ display_help () {
     echo "Options:"
     echo "    --help, -h                - Display this help."
     echo "    --mount-ssh               - Mount ~/.ssh from host into the container"
+    echo "    --arch=, -a=<arch>        - Architecture to build for: armhf or arm64 (default)"
     echo "    --sign=, -s=<keystore>    - sign it with the given keystore"
     echo "    --cert-alias=, -c=<alias> - use the certificate alias for the keytore"
     echo "    --keypass=, -k=<pass>     - provide a password to open the keystore given with --sign"
@@ -34,7 +35,7 @@ variables() {
 
     PACKAGE=`grep -r TARGET= | cut -d ":" -f 2 | cut -d "=" -f 2`
     LXD_IMAGE_NAME=android-qt-builder
-    LXD_IMAGE=nymea:$LXD_IMAGE_NAME
+    LXD_IMAGE=nymea:$LXD_IMAGE_NAME-$ARCH
     LXD_CONTAINER=builder-$CONTAINER_PREFIX$LXD_IMAGE_NAME
 
     USERDIR=/home/$USERNAME
@@ -150,7 +151,7 @@ build () {
 }
 
 build_qmake () {
-    exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-g++ $ADDITIONAL_ARGS; make qmake_all; make -j4"
+    exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-clang $ADDITIONAL_ARGS; make qmake_all; make -j4"
     exec_container "cd builddir; make INSTALL_ROOT=$MOUNT_POINT/builddir/android-build/ install"
     FILES=`exec_container "cd builddir; find $MOUNT_POINT/builddir -name *deployment-settings.json"`
     echo "Signing with: $1"
@@ -175,6 +176,8 @@ clean () {
 KEYSTORE_PATH=""
 KEYSTORE_CERT=""
 KEYSTORE_PASS=""
+MOUNT_SSH=0
+ARCH=arm64
 
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
@@ -205,6 +208,9 @@ while [ "$1" != "" ]; do
             --mount-ssh)
                 MOUNT_SSH=1
             ;;
+            --arch | -a)
+                ARCH=$VALUE
+           ;;
             *)
                 display_help
                 echo ""
