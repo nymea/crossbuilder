@@ -334,7 +334,7 @@ source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
             REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
             echo "Adding repository: $REPO_UNESCAPED"
             exec_container_root "apt-add-repository '$REPO_UNESCAPED'"
-            exec_container_root "apt-get --yes update"
+            exec_container_root "DEBIAN_FRONTEND=noninteractive apt-get --yes update"
         done
     fi
 
@@ -365,7 +365,7 @@ enable_overlay_source () {
     OVERLAY_APT="/etc/apt/sources.list.d/ci-train-ppa-service-ubuntu-stable-phone-overlay-vivid.list"
     if exec_container_root "grep '#.*deb-src' $OVERLAY_APT" ; then
         exec_container_root "sed -i 's/#.*deb-src/deb-src/' $OVERLAY_APT"
-        exec_container_root apt-get update --allow-unauthenticated
+        exec_container_root "DEBIAN_FRONTEND=noninteractive apt-get update --allow-unauthenticated"
     fi
 }
 
@@ -445,7 +445,7 @@ install_dependencies () {
 
         exec_container_root "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000' | sudo tee /etc/apt/preferences.d/localrepo.pref"
         exec_container_root apt-get update -o Acquire::AllowInsecureRepositories=true --allow-unauthenticated
-        if ! exec_container_root apt-get build-dep -y --force-yes -o Apt::Build-Profiles=nocheck,nodoc -a$TARGET_ARCH $PACKAGE=$NEW_PACKAGE_VERSION ; then
+        if ! exec_container_root DEBIAN_FRONTEND=noninteractive apt-get build-dep -y --force-yes -o Apt::Build-Profiles=nocheck,nodoc -a$TARGET_ARCH $PACKAGE=$NEW_PACKAGE_VERSION ; then
             restore_changelog
             exit 1
         fi
@@ -605,14 +605,14 @@ deploy_deb () {
             exec_device "cat /tmp/repo/sources.list >> /tmp/repo/all.list"
             SERIES=$(exec_device lsb_release -cs | tr -d '\r')
             exec_device "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000\n\nPackage: *\nPin: release a=$SERIES*\nPin-Priority: 50' | SUDO_ASKPASS=/tmp/askpass.sh sudo -A tee /etc/apt/preferences.d/localrepo.pref"
-            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A apt-get update
+            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get update
         else
             exec_device /tmp/repo/$CREATE_REPO_SCRIPT /tmp/repo
         fi;
 
         exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 50' /etc/apt/preferences.d/extra-ppas.pref"
-        exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A  apt-get update -o Dir::Etc::sourcelist="/tmp/repo/sources.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
-        exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A apt-get dist-upgrade -o Dir::Etc::sourcelist="/tmp/repo/all.list" --yes --force-yes
+        exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get update -o Dir::Etc::sourcelist="/tmp/repo/sources.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+        exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dir::Etc::sourcelist="/tmp/repo/all.list" --yes --force-yes
         exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 1001' /etc/apt/preferences.d/extra-ppas.pref"
     fi;
 }
