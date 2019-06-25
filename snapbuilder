@@ -148,10 +148,10 @@ enable_overlay_source () {
     exec_container_root apt-key adv --keyserver keyserver.ubuntu.com --recv-key A1A19ED6
 #    exec_container_root apt-add-repository \"deb http://repository.nymea.io $DISTRO main\"
 #    exec_container_root cat /etc/apt/sources.list
-    exec_container_root "echo deb http://repository.nymea.io $DISTRO main > /etc/apt/sources.list.d/nymea.list"
+    exec_container_root "echo deb http://repository.nymea.io $DISTRO main non-free > /etc/apt/sources.list.d/nymea.list"
     exec_container_root cat /etc/apt/sources.list.d/nymea.list
     if [ "$SILO_NAME" != "" ]; then
-        exec_container_root "echo deb http://ci-repo.nymea.io/$SILO_NAME $DISTRO main > /etc/apt/sources.list.d/nymea-silo.list"
+        exec_container_root "echo deb http://ci-repo.nymea.io/$SILO_NAME $DISTRO main non-free > /etc/apt/sources.list.d/nymea-silo.list"
         exec_container_root cat /etc/apt/sources.list.d/nymea-silo.list
     fi
 }
