@@ -17,9 +17,15 @@ display_help () {
     echo "  --container-prefix    - LXD container prefix to use"
 }
 
+# Default variables, may be overriden by command line args
+defaults () {
+    SNAPCRAFT_FILE=snapcraft.yaml
+    MOUNT_SSH=0
+}
+
+# Setup the entire env after having parsed command line args
 variables () {
 
-    SNAPCRAFT_FILE=snapcraft.yaml
     if [ ! -e $SNAPCRAFT_FILE ]; then
         if [ ! -d snap ]; then
             echo "${NEGATIVE_COLOR}snapcraft.yaml not found.${NC}"
@@ -72,7 +78,6 @@ variables () {
     USERDIR=~
     MOUNT_POINT=$USERDIR/$PACKAGE
     SOURCE_PATH_CONTAINER=$MOUNT_POINT
-    MOUNT_SSH=0
 }
 
 
@@ -211,6 +216,9 @@ clean () {
     exec_container snapcraft clean $@
 }
 
+# Setup defaults before parsing command line
+defaults
+
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
     VALUE=`echo $1 | awk -F= '{print $2}'`
@@ -249,6 +257,7 @@ while [ "$1" != "" ]; do
     esac
 done
 
+# Now populate the complete environment
 variables
 
 COMMAND=$1
