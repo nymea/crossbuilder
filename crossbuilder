@@ -428,7 +428,7 @@ install_dependencies () {
         if [ $NO_BUMP_CHANGELOG -ne 1 ]; then
             exec_container dch -v $NEW_PACKAGE_VERSION 'New Package build'
         fi
-        if ! exec_container "DEB_BUILD_PROFILES='$DEB_BUILD_PROFILES' dpkg-buildpackage -S -nc -d -I -Iobj-* -Idebian/tmp/* -I.bzr*" ; then
+        if ! exec_container "DEB_BUILD_PROFILES='$DEB_BUILD_PROFILES' dpkg-buildpackage -S -us -uc -nc -d -I -Iobj-* -Idebian/tmp/* -I.bzr*" ; then
             restore_changelog
             exit 1
         fi
