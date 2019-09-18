@@ -345,11 +345,15 @@ source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
     else
         lxc config device set $LXD_CONTAINER current_dir_mount source $MOUNTED_DIRECTORY
     fi
-
-   if ! lxc config device get $LXD_CONTAINER ccache_dir_mount disk 2> /dev/null ; then
-       echo "${POSITIVE_COLOR}Mounting ccache dir ($HOME/.ccache) in container.${NC}"
-       lxc config device add $LXD_CONTAINER ccache_dir_mount disk source=$HOME/.ccache/ path=$HOME/.ccache
-   fi
+    if [ -d $HOME/.ccache ]; then
+        if ! lxc config device get $LXD_CONTAINER ccache_dir_mount disk 2> /dev/null ; then
+            echo "${POSITIVE_COLOR}Mounting ccache dir ($HOME/.ccache) in container.${NC}"
+            lxc config device add $LXD_CONTAINER ccache_dir_mount disk source=$HOME/.ccache/ path=$HOME/.ccache
+        fi
+    else
+        echo "${NEGATIVE_COLOR}ccache is not set up. In order to speed up builds, consider installing ccache and setting up with:"
+        echo "${NEGATIVE_COLOR}$ ccache -s"
+    fi
 }
 
 delete_container () {
