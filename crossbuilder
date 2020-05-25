@@ -158,11 +158,11 @@ variables () {
     USERNAME=`id --user --name`
     GROUPNAME=$USERNAME
     if [ -n "$ENCRYPTED_HOME" ] ; then
-        USERID=`id --user`
-        GROUPID=`id --group`
-    else
         USERID=150000
         GROUPID=150000
+    else
+        USERID=`id --user`
+        GROUPID=`id --group`
     fi
     USERDIR=/home/$USERNAME
     SOURCE_REPOSITORY=$USERDIR/source_repository
@@ -291,12 +291,13 @@ new_container () {
                 echo "${POSITIVE_COLOR}Using lxc version 2 compatibility$LXD_IMAGE.${NC}"
                 printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
             else
-                printf "lxc.idmap = g $GROUPID `id --group` 1\nlxc.idmap = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+                lxc config set $LXD_CONTAINER raw.idmap="both $GROUPID `id --user`"
             fi
         fi
 
         lxc start $LXD_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser $USERNAME || true
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser ubuntu || true
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- delgroup $GROUPNAME || true
         lxc exec $LXD_CONTAINER -- rm -rf /home/ubuntu
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME

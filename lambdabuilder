@@ -55,7 +55,6 @@ OPTIONS:
   -s, --ssh-dir [DIR]     The directory where the ssh configration and credentials are located. Default $HOME/.ssh
   -n, --node [VERSION]    The node version to use for building the lambda function
                           Available versions can be found here: https://nodejs.org/download/release/
-                          Default version is v8.11.3
   --no-colors             Disable colorfull output
   -h, --help              Show this help message
   -v, --version           Show the version of the tool
@@ -204,8 +203,7 @@ createBaseImage() {
     execContainerRoot aws --version
 
     # Setup preinstalled node versions
-    installNode "v6.14.3"
-    installNode "v8.11.3"
+    installNode "v12.16.1"
 
     # Clean up container
     execContainerRoot apt -y autoremove
@@ -538,7 +536,7 @@ initEnv() {
     PRODUCTION=false
     DEPLOY=false
     CURRENT_CHANNEL=development
-    NODE_VERSION=v8.11.3
+    NODE_VERSION=v12.16.1
 
     # Script options
     COLORS=true
