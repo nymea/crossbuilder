@@ -158,11 +158,11 @@ variables () {
     USERNAME=`id --user --name`
     GROUPNAME=$USERNAME
     if [ -n "$ENCRYPTED_HOME" ] ; then
-        USERID=150000
-        GROUPID=150000
-    else
         USERID=`id --user`
         GROUPID=`id --group`
+    else
+        USERID=150000
+        GROUPID=150000
     fi
     USERDIR=/home/$USERNAME
     SOURCE_REPOSITORY=$USERDIR/source_repository
@@ -291,7 +291,7 @@ new_container () {
                 echo "${POSITIVE_COLOR}Using lxc version 2 compatibility$LXD_IMAGE.${NC}"
                 printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
             else
-                lxc config set $LXD_CONTAINER raw.idmap="both $GROUPID `id --user`"
+                printf "uid `id --user` 150000\ngid `id --group` 150000" | lxc config set $LXD_CONTAINER raw.idmap -
             fi
         fi
 
