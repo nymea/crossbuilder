@@ -157,7 +157,7 @@ build_qmake () {
     echo "Signing with: $1"
     if [ "$KEYSTORE_PATH" != "" ]; then
         lxc file push $KEYSTORE_PATH $LXD_CONTAINER/tmp/key.keystore
-        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-30 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --aab --jarsigner --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
+        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-30 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --aab --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
     else
         exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-30 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --aab --verbose"
     fi
