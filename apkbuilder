@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 PROGRAM_NAME=`basename $0`
 
