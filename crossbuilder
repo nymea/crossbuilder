@@ -191,7 +191,10 @@ variables () {
     if [ -z "$DEB_BUILD_PROFILES" ]; then
         DEB_BUILD_PROFILES='nocheck nodoc'
     fi
-    DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES noautodbgsym"
+    if [ $TARGET_UBUNTU == "xenial" ]; then
+        # Autodbgsym packages don't work in xenials version of dpkg when building in a container
+        DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES noautodbgsym"
+    fi
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
 }
 
