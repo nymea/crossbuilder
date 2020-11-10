@@ -191,7 +191,7 @@ variables () {
     if [ -z "$DEB_BUILD_PROFILES" ]; then
         DEB_BUILD_PROFILES='nocheck nodoc'
     fi
-    if [ $TARGET_UBUNTU == "xenial" || $TARGET_UBUNTU == "bionic" ]; then
+    if [ $TARGET_UBUNTU == "xenial" ] || [ $TARGET_UBUNTU == "bionic" ]; then
         # Autodbgsym packages don't work in xenials and bionics version of dpkg when building in a container
         DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES noautodbgsym"
     fi
