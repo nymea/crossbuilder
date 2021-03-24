@@ -194,6 +194,8 @@ variables () {
     if [ $TARGET_UBUNTU == "xenial" ] || [ $TARGET_UBUNTU == "bionic" ]; then
         # Autodbgsym packages don't work in xenials and bionics version of dpkg when building in a container
         DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES noautodbgsym"
+    else
+        DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES autodbgsym"
     fi
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
 }
@@ -614,15 +616,15 @@ deploy_deb () {
             exec_device "cat /tmp/repo/sources.list >> /tmp/repo/all.list"
             SERIES=$(exec_device lsb_release -cs | tr -d '\r')
             exec_device "printf 'Package: *\nPin: release o=local\nPin-Priority: 2000\n\nPackage: *\nPin: release a=$SERIES*\nPin-Priority: 50' | SUDO_ASKPASS=/tmp/askpass.sh sudo -A tee /etc/apt/preferences.d/localrepo.pref"
-            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get update
+            exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get update --allow-unauthenticated
         else
             exec_device /tmp/repo/$CREATE_REPO_SCRIPT /tmp/repo
         fi;
 
-        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 50' /etc/apt/preferences.d/extra-ppas.pref"
+        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 50' /etc/apt/preferences.d/localrepo.pref"
         exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get update -o Dir::Etc::sourcelist="/tmp/repo/sources.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
         exec_device SUDO_ASKPASS=/tmp/askpass.sh sudo -A DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dir::Etc::sourcelist="/tmp/repo/all.list" --yes --force-yes
-        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 1001' /etc/apt/preferences.d/extra-ppas.pref"
+        exec_device "SUDO_ASKPASS=/tmp/askpass.sh sudo -A sed -i '/Pin-Priority/c\Pin-Priority: 1001' /etc/apt/preferences.d/localrepo.pref"
     fi;
 }
 
