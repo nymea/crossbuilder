@@ -33,7 +33,7 @@ variables() {
     USERID=150000
     GROUPID=150000
 
-    PACKAGE=`grep -r TARGET= | cut -d ":" -f 2 | cut -d "=" -f 2`
+    PACKAGE=`basename "$PWD"`
     LXD_IMAGE_NAME=android-qt-builder
     LXD_IMAGE=nymea:$LXD_IMAGE_NAME
     LXD_CONTAINER=builder-$CONTAINER_PREFIX$LXD_IMAGE_NAME
