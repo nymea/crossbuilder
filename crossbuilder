@@ -153,6 +153,11 @@ variables () {
         LXD_CONTAINER=$LXD_CONTAINER_COMPAT
     fi
 
+    # Starting from impish, the image wont have the target arch any more. Lets add it to the container then
+    if [ "$TARGET_UBUNTU" == "impish" ]; then
+        LXD_CONTAINER=$LXD_CONTAINER-$TARGET_ARCH
+    fi
+
     # LXD container name can only have HOST_NAME_MAX characters
     LXD_CONTAINER=$(echo $LXD_CONTAINER | cut -c 1-$((`getconf HOST_NAME_MAX` - 1)))
     USERNAME=`id --user --name`
@@ -316,17 +321,13 @@ new_container () {
         exec_container_root adduser $USERNAME sudo
         # set empty password for the user
         exec_container_root passwd --delete $USERNAME
-        # FIXME: these should probably be set in the image already
         exec_container_root "printf 'export PKG_CONFIG_PATH=/usr/lib/$TARGET_FARCH/pkgconfig\n\
-export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
+if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "stretch" ]; then
+  export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
+fi
 if [ "$TARGET_ARCH" = "i386" ]; then
-  if [ "$TARGET_UBUNTU" = "jessie" ]; then
-    export CC=i586-linux-gnu-gcc\n\
-    export CXX=i586-linux-gnu-g++\n\
-  else
-    export CC=i686-linux-gnu-gcc\n\
-    export CXX=i686-linux-gnu-g++\n\
-  fi
+  export CC=i686-linux-gnu-gcc\n\
+  export CXX=i686-linux-gnu-g++\n\
 else
   export CC=$TARGET_FARCH-gcc\n\
   export CXX=$TARGET_FARCH-g++\n\
@@ -832,7 +833,12 @@ if [ $? -ne 0 ]; then echo "TARGET_UBUNTU=$TARGET_UBUNTU" >> $CACHE_CONF; else s
 set -e
 
 if [ -z "$LXD_IMAGE" ] ; then
-    LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH-$TARGET_ARCH
+    # Starting with impish we're using a single container for all target archs
+    if [ "$TARGET_UBUNTU" == "impish" ]; then
+      LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH
+    else
+      LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH-$TARGET_ARCH
+    fi
 fi
 
 COMMAND=$1
