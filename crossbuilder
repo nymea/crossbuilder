@@ -502,9 +502,9 @@ build_deb () {
     # transfer resulting debian packages to local machine
     echo "${POSITIVE_COLOR}Packing build artifacts in $DEBS_TARBALL.${NC}"
     rm -f $DEBS_TARBALL_ROOT*
-    exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar* || tar cf ../$DEBS_TARBALL ../*.deb"
+    exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar* || tar cf ../$DEBS_TARBALL ../*.deb"
     lxc file pull $LXD_CONTAINER$USERDIR/$DEBS_TARBALL .
-    exec_container "rm ../*.deb ../*.changes ../$DEBS_TARBALL ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar* || true"
+    exec_container "rm ../*.deb ../*.ddeb ../*.changes ../$DEBS_TARBALL ../source_repository/*.dsc ../source_repository/*.changes ../source_repository/*.tar* || true"
 }
 
 build_make_install () {
