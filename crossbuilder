@@ -322,7 +322,7 @@ new_container () {
         # set empty password for the user
         exec_container_root passwd --delete $USERNAME
         exec_container_root "printf 'export PKG_CONFIG_PATH=/usr/lib/$TARGET_FARCH/pkgconfig\n\
-if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "stretch" ]; then
+if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "stretch" ] || [ "$TARGET_UBUNTU" == "buster" ]; then
   export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
 fi
 if [ "$TARGET_ARCH" = "i386" ]; then
