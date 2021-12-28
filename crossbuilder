@@ -154,7 +154,7 @@ variables () {
     fi
 
     # Starting from impish, the image wont have the target arch any more. Lets add it to the container then
-    if [ "$TARGET_UBUNTU" == "impish" ]; then
+    if [ "$TARGET_UBUNTU" == "impish" ] || [ "$TARGET_UBUNTU" == "bullseye" ] ; then
         LXD_CONTAINER=$LXD_CONTAINER-$TARGET_ARCH
     fi
 
@@ -834,11 +834,12 @@ set -e
 
 if [ -z "$LXD_IMAGE" ] ; then
     # Starting with impish we're using a single container for all target archs
-    if [ "$TARGET_UBUNTU" == "impish" ]; then
+    if [ "$TARGET_UBUNTU" == "impish" ] || [ "$TARGET_UBUNTU" == "bullseye" ]; then
       LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH
     else
       LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH-$TARGET_ARCH
     fi
+    echo "LXD_IMAGE: $LXD_IMAGE"
 fi
 
 COMMAND=$1
