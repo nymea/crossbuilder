@@ -78,6 +78,7 @@ display_help () {
     echo "  --deploy-path         - When deploying with --no-deb (rsync), installation path for the build artifacts [defaults to /]."
     echo "  --no-changelog | -c   - Don't bump the changelog."
     echo "  --add-repository | -r - Add repository. This is a string understood by apt-add-repository. Can be given multiple times."
+    echo "  --remove-repository   - Remove a repository."
 }
 
 
@@ -342,8 +343,14 @@ source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
             REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
             echo "Adding repository: $REPO_UNESCAPED"
             exec_container_root "apt-add-repository '$REPO_UNESCAPED'"
-            exec_container_root "DEBIAN_FRONTEND=noninteractive apt-get --yes update"
         done
+        for i in $(seq 1 ${#REMOVE_REPOS[*]}); do
+            REPO="${REMOVE_REPOS[$((i-1))]}"
+            REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
+            echo "Removing repository: $REPO_UNESCAPED"
+            exec_container_root "apt-add-repository -r '$REPO_UNESCAPED'"
+        done
+        exec_container_root "DEBIAN_FRONTENT=noninteractive apt-get --yes update"
     fi
 
     if ! lxc config device get $LXD_CONTAINER current_dir_mount disk 2> /dev/null ; then
@@ -749,6 +756,7 @@ NO_BUMP_CHANGELOG=0
 DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
 ADDITIONAL_REPOS=()
+REMOVE_REPOS=()
 
 # Load run configuration cache (will load TARGET_ARCH and TARGET_UBUNTU)
 CACHE_CONF=.crossbuilder/cache.conf
@@ -812,6 +820,10 @@ while [ "$1" != "" ]; do
             -r)
                 shift
                 ADDITIONAL_REPOS+=("$1")
+            ;;
+            --remove-repository)
+                shift
+                REMOVE_REPOS+=("$1")
             ;;
             *)
                 display_help
