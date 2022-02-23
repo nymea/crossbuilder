@@ -553,7 +553,8 @@ check_for_container_network() {
     NETWORK_UP=0
     for i in `seq 1 20`
     do
-        if lxc info $LXD_CONTAINER | grep -e "eth0.*inet\b" > /dev/null 2>&1 ; then
+        # lxc < 4.20 prints "eth0:  inet <ip>", > 4.20 prints "inet: <ip> (global)"
+        if lxc info $LXD_CONTAINER | grep -e "eth0.*inet\b\|inet:.*(global)" > /dev/null 2>&1 ; then
             NETWORK_UP=1
             break
         fi
