@@ -558,6 +558,11 @@ check_for_container_network() {
             NETWORK_UP=1
             break
         fi
+        if [ "$TARGET_UBUNTU" == "xenial" ]; then
+            # in newer lxc versions xenial containers network won't come up on its own
+            lxc exec $LXD_CONTAINER dhclient eth0
+            exec_container_root "echo nameserver 8.8.8.8 > /etc/resolv.conf"
+        fi
         sleep 1
     done
     if [ $NETWORK_UP -ne 1 ] ; then
