@@ -499,7 +499,7 @@ build_deb () {
     echo "${POSITIVE_COLOR}Building $PACKAGE for $TARGET_ARCH in parallel (-j$PARALLEL_BUILD).${NC}"
 #    exec_container "rm -f ../*.deb"
     exec_container "rm -f debian/*.debhelper.log"
-    exec_container "rm -r ../*.deb ../*.ddeb ../*.dsc ../*.tar* ../*.changes ../$DEBS_TARBALL ../source_repository/* > /dev/null 2>&1 || true"
+    exec_container "rm -rf ../*.deb ../*.ddeb ../*.dsc ../*.tar* ../*.changes ../$DEBS_TARBALL ../source_repository/* > /dev/null 2>&1 || true"
     backup_changelog
     trap restore_changelog HUP INT TERM QUIT
 
@@ -517,7 +517,7 @@ build_deb () {
     rm -f $DEBS_TARBALL_ROOT*
     exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../*.dsc ../*.tar* || tar cf ../$DEBS_TARBALL ../*.deb ../*.dsc ../*changes ../$PACKAGE*tar*"
     lxc file pull $LXD_CONTAINER$USERDIR/$DEBS_TARBALL .
-    exec_container "rm -r ../*.deb ../*.ddeb ../*.dsc ../$PACKAGE*.tar* ../*.changes ../$DEBS_TARBALL ../source_repository/* > /dev/null 2>&1 || true"
+    exec_container "rm -rf ../*.deb ../*.ddeb ../*.dsc ../$PACKAGE*.tar* ../*.changes ../$DEBS_TARBALL ../source_repository/* > /dev/null 2>&1 || true"
 }
 
 build_make_install () {
