@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 PROGRAM_NAME=`basename $0`
 
@@ -62,7 +62,10 @@ new_container() {
             echo "${POSITIVE_COLOR}Using lxc version 2 compatibility$LXD_IMAGE.${NC}"
             printf "lxc.id_map = g $GROUPID `id --group` 1\nlxc.id_map = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
         else
-            printf "lxc.idmap = g $GROUPID `id --group` 1\nlxc.idmap = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
+            printf "uid `id --user` 150000\ngid `id --group` 150000" | lxc config set $LXD_CONTAINER raw.idmap -
+
+#            echo "Mapping uids: lxc.idmap = g $GROUPID `id --group` 1\nlxc.idmap = u $USERID `id --user` 1"
+#            printf "lxc.idmap = g `id --group` 1\nlxc.idmap = u $USERID `id --user` 1" | lxc config set $LXD_CONTAINER raw.lxc -
         fi
 
 
