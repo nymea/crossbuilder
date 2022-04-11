@@ -71,7 +71,7 @@ display_help () {
     echo "  --packages            - Packages to deploy [by default: all the ones already installed on device]."
     echo "  --architecture | -a   - Architecture to build for [defaults to architecture of connected device, if none then armhf]."
     echo "  --ubuntu | -u         - Version of Ubuntu to build for [defaults to version of connected device, if none then 16.04]."
-    echo "  --lxd-image           - LXD image to use [defaults to the ones provided by jenkins.nymea.io (example: nymea-builder-xenial-amd64-armhf)."
+    echo "  --lxd-image           - LXD image to use [defaults to the ones provided by images.nymea.io (example: nymea-builder-xenial-amd64-armhf)."
     echo "  --container-prefix    - LXD container prefix to use"
     echo "  --password            - User password of the device to deploy to [defaults to 0000]."
     echo "  --no-deb              - Do not build Debian packages and uses rsync to deploy the build artifacts."
@@ -79,6 +79,7 @@ display_help () {
     echo "  --no-changelog | -c   - Don't bump the changelog."
     echo "  --add-repository | -r - Add repository. This is a string understood by apt-add-repository. Can be given multiple times."
     echo "  --remove-repository   - Remove a repository."
+    echo "  --dpkg-flags          - Additional flags to be passed to dpkg-buildpackage."
 }
 
 
@@ -204,6 +205,11 @@ variables () {
         DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES autodbgsym"
     fi
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
+    if [ BUILD_SRCPKG -eq 1 ]; then
+        BUILD_TYPE_FLAGS="-F"
+    else
+        BUILD_TYPE_FLAGS="-b"
+    fi
 }
 
 check_lxd_accessible () {
@@ -289,7 +295,7 @@ new_container () {
         lxc start $LXD_CONTAINER || true
     else
         echo "${POSITIVE_COLOR}Creating LXD container $LXD_CONTAINER using $LXD_IMAGE.${NC}"
-        lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
+        lxc remote --public=true --accept-certificate=true add nymea https://images.nymea.io || true
 #        lxc remote --protocol=simplestreams --public=true --accept-certificate=true add sdk https://sdk-images.canonical.com || true
         lxc init $LXD_IMAGE $LXD_CONTAINER
         if [ -n "$ENCRYPTED_HOME" ] ; then
@@ -506,7 +512,7 @@ build_deb () {
     if [ $NO_BUMP_CHANGELOG -ne 1 ]; then
         exec_container dch -v $NEW_PACKAGE_VERSION \'\'
     fi
-    if ! exec_container "DEB_BUILD_PROFILES='$DEB_BUILD_PROFILES' DEB_BUILD_OPTIONS='parallel=$PARALLEL_BUILD $DEB_BUILD_PROFILES' dpkg-buildpackage --target-arch $TARGET_ARCH -us -uc -nc -I -Iobj-* -Idebian/tmp/* -I.bzr* -F" ; then
+    if ! exec_container "DEB_BUILD_PROFILES='$DEB_BUILD_PROFILES' DEB_BUILD_OPTIONS='parallel=$PARALLEL_BUILD $DEB_BUILD_PROFILES' dpkg-buildpackage --target-arch $TARGET_ARCH -us -uc -nc -I -Iobj-* -Idebian/tmp/* -I.bzr* $BUILD_TYPE_FLAGS" ; then
         restore_changelog
         exit 1
     fi
@@ -515,7 +521,11 @@ build_deb () {
     # transfer resulting debian packages to local machine
     echo "${POSITIVE_COLOR}Packing build artifacts in $DEBS_TARBALL.${NC}"
     rm -f $DEBS_TARBALL_ROOT*
-    exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../*.dsc ../*.tar* || tar cf ../$DEBS_TARBALL ../*.deb ../*.dsc ../*changes ../$PACKAGE*tar*"
+    if [ $BUILD_SRCPKG ]; then
+        exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../*.dsc ../*.tar* || tar cf ../$DEBS_TARBALL ../*.deb ../*.dsc ../*changes ../$PACKAGE*tar*"
+    else
+        exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../*.dsc ../*.tar* || tar cf ../$DEBS_TARBALL ../*.deb"
+    fi
     lxc file pull $LXD_CONTAINER$USERDIR/$DEBS_TARBALL .
     exec_container "rm -rf ../*.deb ../*.ddeb ../*.dsc ../$PACKAGE*.tar* ../*.changes ../$DEBS_TARBALL ../source_repository/* > /dev/null 2>&1 || true"
 }
@@ -831,6 +841,10 @@ while [ "$1" != "" ]; do
                 shift
                 REMOVE_REPOS+=("$1")
             ;;
+            -s)
+                shift
+                BUILD_SRCPKG=1
+            ;;
             *)
                 display_help
                 echo ""
@@ -857,11 +871,11 @@ if [ $? -ne 0 ]; then echo "TARGET_UBUNTU=$TARGET_UBUNTU" >> $CACHE_CONF; else s
 set -e
 
 if [ -z "$LXD_IMAGE" ] ; then
-    # Starting with impish we're using a single container for all target archs
-    if [ "$TARGET_UBUNTU" == "impish" ] || [ "$TARGET_UBUNTU" == "bullseye" ]; then
-      LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH
-    else
+    # Starting with impish/bullseye we're using a single container for all target archs
+    if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "focal" ] || [ "$TARGET_UBUNTU" == "buster" ]; then
       LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH-$TARGET_ARCH
+    else
+      LXD_IMAGE=nymea:nymea-builder-$TARGET_UBUNTU-$HOST_ARCH
     fi
     echo "LXD_IMAGE: $LXD_IMAGE"
 fi
