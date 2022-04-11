@@ -79,7 +79,7 @@ display_help () {
     echo "  --no-changelog | -c   - Don't bump the changelog."
     echo "  --add-repository | -r - Add repository. This is a string understood by apt-add-repository. Can be given multiple times."
     echo "  --remove-repository   - Remove a repository."
-    echo "  --dpkg-flags          - Additional flags to be passed to dpkg-buildpackage."
+    echo "  --with-source | -s    - Include source package in build."
 }
 
 
@@ -205,7 +205,7 @@ variables () {
         DEB_BUILD_PROFILES="$DEB_BUILD_PROFILES autodbgsym"
     fi
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
-    if [ BUILD_SRCPKG -eq 1 ]; then
+    if [ $BUILD_SRCPKG -eq 1 ]; then
         BUILD_TYPE_FLAGS="-F"
     else
         BUILD_TYPE_FLAGS="-b"
