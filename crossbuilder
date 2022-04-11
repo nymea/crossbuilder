@@ -841,8 +841,7 @@ while [ "$1" != "" ]; do
                 shift
                 REMOVE_REPOS+=("$1")
             ;;
-            -s)
-                shift
+            --with-source | -s)
                 BUILD_SRCPKG=1
             ;;
             *)
