@@ -157,6 +157,8 @@ variables () {
 
     # Starting from impish, the image wont have the target arch any more. Lets add it to the container then
     if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "focal" ] || [ "$TARGET_UBUNTU" == "hirsute" ] || [ "$TARGET_UBUNTU" == "buster" ]; then
+        ;
+    else
         LXD_CONTAINER=$LXD_CONTAINER-$TARGET_ARCH
     fi
 
