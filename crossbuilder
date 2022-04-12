@@ -770,6 +770,7 @@ HOST_ARCH=`dpkg --print-architecture`
 TARGET_ARCH=amd64
 TARGET_UBUNTU=xenial
 NO_BUMP_CHANGELOG=0
+BUILD_SRCPKG=0
 
 DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
