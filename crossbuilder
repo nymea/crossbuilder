@@ -157,8 +157,9 @@ variables () {
 
     # Starting from impish, the image wont have the target arch any more. Lets add it to the container then
     if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "focal" ] || [ "$TARGET_UBUNTU" == "hirsute" ] || [ "$TARGET_UBUNTU" == "buster" ]; then
-        ;
+        echo "Using split image container"
     else
+        echo "Using single image container"
         LXD_CONTAINER=$LXD_CONTAINER-$TARGET_ARCH
     fi
 
@@ -770,7 +771,7 @@ HOST_ARCH=`dpkg --print-architecture`
 TARGET_ARCH=amd64
 TARGET_UBUNTU=xenial
 NO_BUMP_CHANGELOG=0
-BUILD_SRCPKG=0
+BUILD_SRCPKG=1
 
 DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
