@@ -13,7 +13,6 @@ display_help () {
     echo "Options:"
     echo "    --help, -h          - Display this help."
     echo "    --mount-ssh         - Mount ~/.ssh into the container (if snapcraft requires ssh keys to access repositories)."
-    echo "    --silo, -s          - Add ci-repo.nymea.io/... to the apt sources"
     echo "  --container-prefix    - LXD container prefix to use"
 }
 
@@ -21,6 +20,8 @@ display_help () {
 defaults () {
     SNAPCRAFT_FILE=snapcraft.yaml
     MOUNT_SSH=0
+    REPO_FILES=()
+    AUTH_FILES=()
 }
 
 # Setup the entire env after having parsed command line args
@@ -137,6 +138,18 @@ new_container () {
             lxc config device add $LXD_CONTAINER ssh_dir_mount disk source=$HOME/.ssh/ path=$HOME/.ssh
         fi
     fi
+
+    for i in $(seq 1 ${#REPO_FILES[*]}); do
+        REPO_FILE="${REPO_FILES[$((i-1))]}"
+        echo "copying file to container: $REPO_FILE"
+        lxc file push $REPO_FILE $LXD_CONTAINER/etc/apt/sources.list.d/
+    done
+
+    for i in $(seq 1 ${#AUTH_FILES[*]}); do
+        AUTH_FILE="${AUTH_FILES[$((i-1))]}"
+        echo "copying file to container: $AUTH_FILE"
+        lxc file push $AUTH_FILE $LXD_CONTAINER/etc/apt/auth.conf.d/
+    done
 }
 
 delete_container () {
@@ -155,10 +168,6 @@ enable_overlay_source () {
 #    exec_container_root cat /etc/apt/sources.list
     exec_container_root "echo deb http://repository.nymea.io $DISTRO main non-free > /etc/apt/sources.list.d/nymea.list"
     exec_container_root cat /etc/apt/sources.list.d/nymea.list
-    if [ "$SILO_NAME" != "" ]; then
-        exec_container_root "echo deb http://ci-repo.nymea.io/$SILO_NAME $DISTRO main non-free > /etc/apt/sources.list.d/nymea-silo.list"
-        exec_container_root cat /etc/apt/sources.list.d/nymea-silo.list
-    fi
 }
 
 check_command_parameter_count () {
@@ -231,12 +240,13 @@ while [ "$1" != "" ]; do
             --container-prefix)
                 CONTAINER_PREFIX=$VALUE
             ;;
-            --silo)
-                SILO_NAME=$VALUE
+            --repo-file | -r)
+                shift
+                REPO_FILES+=("$1")
             ;;
-            -s)
-                shift;
-                SILO_NAME=$1
+            --auth-file | -a)
+                shift
+                AUTH_FILES+=("$1")
             ;;
             --help | -h | help )
                 display_help
