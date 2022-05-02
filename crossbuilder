@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 
 # Copyright 2016 Canonical Ltd.
 # Copyright 2017-2019 Michael Zanetti <michal.zanetti@nymea.io>
@@ -209,8 +209,10 @@ variables () {
     fi
     echo "Using DEB_BUILD_PROFILES: $DEB_BUILD_PROFILES";
     if [ $BUILD_SRCPKG -eq 1 ]; then
+        echo "Build type: Full"
         BUILD_TYPE_FLAGS="-F"
     else
+        echo "Build type: Binary"
         BUILD_TYPE_FLAGS="-b"
     fi
 }
@@ -771,7 +773,7 @@ HOST_ARCH=`dpkg --print-architecture`
 TARGET_ARCH=amd64
 TARGET_UBUNTU=xenial
 NO_BUMP_CHANGELOG=0
-BUILD_SRCPKG=1
+BUILD_SRCPKG=0
 
 DEVICE_PASSWORD=nymea # Will be set by variables() if overridden in .crossbuilder/deploy.conf
 
