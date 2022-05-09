@@ -526,10 +526,10 @@ build_deb () {
     # transfer resulting debian packages to local machine
     echo "${POSITIVE_COLOR}Packing build artifacts in $DEBS_TARBALL.${NC}"
     rm -f $DEBS_TARBALL_ROOT*
-    if [ $BUILD_SRCPKG ]; then
+    if [ $BUILD_SRCPKG -eq 1 ]; then
         exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../*.dsc ../*.tar* || tar cf ../$DEBS_TARBALL ../*.deb ../*.dsc ../*changes ../$PACKAGE*tar*"
     else
-        exec_container "tar cf ../$DEBS_TARBALL ../*.deb ../*.ddeb ../*.dsc ../*.tar* || tar cf ../$DEBS_TARBALL ../*.deb"
+        exec_container "tar cf ../$DEBS_TARBALL ../*deb"
     fi
     lxc file pull $LXD_CONTAINER$USERDIR/$DEBS_TARBALL .
     exec_container "rm -rf ../*.deb ../*.ddeb ../*.dsc ../$PACKAGE*.tar* ../*.changes ../$DEBS_TARBALL ../source_repository/* > /dev/null 2>&1 || true"
