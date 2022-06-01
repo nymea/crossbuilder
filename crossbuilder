@@ -80,6 +80,7 @@ display_help () {
     echo "  --add-repository | -r - Add repository. This is a string understood by apt-add-repository. Can be given multiple times."
     echo "  --remove-repository   - Remove a repository."
     echo "  --with-source | -s    - Include source package in build."
+    echo "  --apt-proxy | -p      - Use an apt proxy."
 }
 
 
@@ -348,6 +349,11 @@ export PATH="/usr/lib/ccache:$PATH"
 
 source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
 ' >> /etc/profile.d/crossbuilder.sh"
+
+        if [ "$APT_PROXY" != "" ]; then
+            echo "Adding apt proxy: $APT_PROXY"
+            exec_container_root "echo 'Acquire::http { Proxy \"$APT_PROXY\"; };' | sudo tee /etc/apt/apt.conf.d/01proxy"
+        fi
 
         for i in $(seq 1 ${#ADDITIONAL_REPOS[*]}); do
             REPO="${ADDITIONAL_REPOS[$((i-1))]}"
@@ -849,6 +855,9 @@ while [ "$1" != "" ]; do
             ;;
             --with-source | -s)
                 BUILD_SRCPKG=1
+            ;;
+            --apt-proxy | -p)
+                APT_PROXY=$VALUE
             ;;
             *)
                 display_help
