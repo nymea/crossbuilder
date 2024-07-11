@@ -167,6 +167,7 @@ build () {
 }
 
 build_qmake () {
+    local SDK_VERSION=33
     exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-clang $ADDITIONAL_ARGS; make qmake_all; make -j4"
     exec_container "cd builddir; make INSTALL_ROOT=$MOUNT_POINT/builddir/android-build/ install"
     FILES=`exec_container "cd builddir; find $MOUNT_POINT/builddir -name *deployment-settings.json"`
@@ -174,15 +175,15 @@ build_qmake () {
         echo "Signing with: $KEYSTORE_CERT certificate from $KEYSTORE_PATH"
         lxc file push $KEYSTORE_PATH $LXD_CONTAINER/tmp/key.keystore
 
-        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-34 --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --jarsigner --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
+        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-${SDK_VERSION} --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --jarsigner --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
 
         # Note: the jarsigner can only sign apk using V1 signatures. Since Android 7 at least V2 signature is required.
         # https://source.android.com/docs/security/features/apksigning
         echo "Sign using apksigner"
-        exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; ls -l ; /opt/android/sdk/build-tools/34.0.0/apksigner sign --ks /tmp/key.keystore --ks-pass pass:$KEYSTORE_PASS android-build-release-signed.apk"
-        exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; /opt/android/sdk/build-tools/34.0.0/apksigner verify --verbose android-build-release-signed.apk"
+        exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; ls -l ; /opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner sign --ks /tmp/key.keystore --ks-pass pass:$KEYSTORE_PASS android-build-release-signed.apk"
+        exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; /opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner verify --verbose android-build-release-signed.apk"
     else
-        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-34 --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --verbose"
+        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-${SDK_VERSION} --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --verbose"
     fi
 }
 
