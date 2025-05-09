@@ -2,6 +2,7 @@
 
 PROGRAM_NAME=`basename $0`
 
+
 display_help () {
     echo "Usage: $PROGRAM_NAME [options] [command]"
     echo ""
@@ -9,11 +10,11 @@ display_help () {
     echo "    help                      - Display this help."
     echo "    delete                    - Delete a container."
     echo "    shell                     - Enter a container."
-    echo "    clean                     - Clean the snap build dir."
+    echo "    clean                     - Clean the build dir."
     echo "Options:"
     echo "    --help, -h                - Display this help."
     echo "    --mount-ssh               - Mount ~/.ssh from host into the container"
-    echo "    --arch=, -a=<arch>        - Architecture to build for: armhf or arm64 (default)"
+    echo "    --enterprise              - Build using the enterprise version of Qt."
     echo "    --sign=, -s=<keystore>    - sign it with the given keystore"
     echo "    --cert-alias=, -c=<alias> - use the certificate alias for the keytore"
     echo "    --keypass=, -k=<pass>     - provide a password to open the keystore given with --sign"
@@ -34,10 +35,17 @@ variables() {
     GROUPID=150000
 
     PACKAGE=`basename "$PWD"`
-    LXD_IMAGE_NAME=android-qt-builder
-    LXD_IMAGE=nymea:$LXD_IMAGE_NAME
-    LXD_CONTAINER=builder-$CONTAINER_PREFIX$LXD_IMAGE_NAME
 
+    if [ $ENTERPRISE -eq 1 ]; then
+        # Note: requires a local image containing Qt enterprise version
+        LXD_IMAGE_NAME=android-qt-enterprise-builder
+        LXD_IMAGE=$LXD_IMAGE_NAME
+    else
+        LXD_IMAGE_NAME=android-qt-builder
+        LXD_IMAGE=nymea:$LXD_IMAGE_NAME
+    fi
+
+    LXD_CONTAINER=builder-$CONTAINER_PREFIX$LXD_IMAGE_NAME
     USERDIR=/home/$USERNAME
     MOUNTED_DIRECTORY=$PWD
     MOUNT_POINT=$USERDIR/$PACKAGE
@@ -71,13 +79,14 @@ new_container() {
 
         lxc start $LXD_CONTAINER
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser $USERNAME || true
+        lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- deluser ubuntu || true
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- delgroup $GROUPNAME || true
         lxc exec $LXD_CONTAINER -- rm -rf /home/ubuntu
         lxc exec --env GROUPID=$GROUPID --env GROUPNAME=$GROUPNAME $LXD_CONTAINER -- addgroup --gid $GROUPID $GROUPNAME
         lxc exec --env GROUPID=$GROUPID --env USERNAME=$USERNAME --env USERID=$USERID $LXD_CONTAINER -- adduser --disabled-password --gecos "" --uid $USERID --gid $GROUPID $USERNAME
         lxc exec --env USERNAME=$USERNAME $LXD_CONTAINER -- usermod -aG sudo $USERNAME
         exec_container_root passwd --delete $USERNAME
-
+        #exec_container_root echo "$USER ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER
     fi
 
     if ! lxc config device get $LXD_CONTAINER current_dir_mount disk 2> /dev/null ; then
@@ -93,6 +102,11 @@ new_container() {
         lxc config device add $LXD_CONTAINER gradle_cache_dir_mount disk source=$HOME/.gradle/ path=$HOME/.gradle
     fi
 
+    if [ $ENTERPRISE -eq 1 ]; then
+        echo "Copy Qt license file /home/$USERNAME/.qt-license into container home directory..."
+        lxc file push /home/$USERNAME/.qt-license $LXD_CONTAINER/home/$USERNAME/
+    fi
+
     if [ $MOUNT_SSH -eq 1 ]; then
         if ! lxc config device get $LXD_CONTAINER ssh_dir_mount disk 2> /dev/null ; then
             echo "${POSITIVE_COLOR}Mounting ssh config dir ($HOME/.ssh) in container.${NC}"
@@ -101,7 +115,6 @@ new_container() {
     fi
 
     exec_container_root chgrp -R 150000 /opt/ || true
-
 }
 
 delete_container () {
@@ -154,15 +167,23 @@ build () {
 }
 
 build_qmake () {
+    local SDK_VERSION=33
     exec_container "mkdir builddir || true; cd builddir; qmake $MOUNT_POINT CONFIG+=release -spec android-clang $ADDITIONAL_ARGS; make qmake_all; make -j4"
     exec_container "cd builddir; make INSTALL_ROOT=$MOUNT_POINT/builddir/android-build/ install"
     FILES=`exec_container "cd builddir; find $MOUNT_POINT/builddir -name *deployment-settings.json"`
-    echo "Signing with: $KEYSTORE_PATH"
     if [ "$KEYSTORE_PATH" != "" ]; then
+        echo "Signing with: $KEYSTORE_CERT certificate from $KEYSTORE_PATH"
         lxc file push $KEYSTORE_PATH $LXD_CONTAINER/tmp/key.keystore
-        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-30 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --aab --jarsigner --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
+
+        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-${SDK_VERSION} --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --jarsigner --sign /tmp/key.keystore $KEYSTORE_CERT --storepass $KEYSTORE_PASS --verbose"
+
+        # Note: the jarsigner can only sign apk using V1 signatures. Since Android 7 at least V2 signature is required.
+        # https://source.android.com/docs/security/features/apksigning
+        echo "Sign using apksigner"
+        exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; ls -l ; /opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner sign --ks /tmp/key.keystore --ks-pass pass:$KEYSTORE_PASS android-build-release-signed.apk"
+        exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; /opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner verify --verbose android-build-release-signed.apk"
     else
-        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-30 --jdk /usr/lib/jvm/java-8-openjdk-amd64 --gradle --aab --verbose"
+        exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-${SDK_VERSION} --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --verbose"
     fi
 }
 
@@ -180,7 +201,7 @@ KEYSTORE_PATH=""
 KEYSTORE_CERT=""
 KEYSTORE_PASS=""
 MOUNT_SSH=0
-ARCH=arm64
+ENTERPRISE=0
 
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
@@ -202,6 +223,9 @@ while [ "$1" != "" ]; do
             --cert-alias | -c )
                 KEYSTORE_CERT=$VALUE
             ;;
+            --enterprise )
+                ENTERPRISE=1
+            ;;
             --keypass | -k )
                 KEYSTORE_PASS=$VALUE
             ;;
@@ -211,9 +235,6 @@ while [ "$1" != "" ]; do
             --mount-ssh)
                 MOUNT_SSH=1
             ;;
-            --arch | -a)
-                ARCH=$VALUE
-           ;;
             *)
                 display_help
                 echo ""
