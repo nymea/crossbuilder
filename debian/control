@@ -1,7 +1,7 @@
 Source: crossbuilder
 Section: devel
 Priority: optional
-Maintainer: Michael Zanetti <michael.zanetti@guh.io>
+Maintainer: nymea GmbH <developer@nymea.io>
 Build-depends: debhelper (>= 0.0.0),
 Standards-Version: 3.9.3
 
