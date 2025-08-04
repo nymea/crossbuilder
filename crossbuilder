@@ -302,7 +302,6 @@ new_container () {
     else
         echo "${POSITIVE_COLOR}Creating LXD container $LXD_CONTAINER using $LXD_IMAGE.${NC}"
         lxc remote --public=true --accept-certificate=true add nymea https://images.nymea.io || true
-#        lxc remote --protocol=simplestreams --public=true --accept-certificate=true add sdk https://sdk-images.canonical.com || true
         lxc init $LXD_IMAGE $LXD_CONTAINER
         if [ -n "$ENCRYPTED_HOME" ] ; then
             lxc config set $LXD_CONTAINER security.privileged true
@@ -330,14 +329,12 @@ new_container () {
         check_for_container_network
         check_for_dpkg_available
         exec_container_root apt update
-        exec_container_root apt install -y sudo debhelper ccache software-properties-common devscripts
+        exec_container_root apt install -y sudo debhelper ccache devscripts
         exec_container_root adduser $USERNAME sudo
         # set empty password for the user
         exec_container_root passwd --delete $USERNAME
         exec_container_root "printf 'export PKG_CONFIG_PATH=/usr/lib/$TARGET_FARCH/pkgconfig\n\
-if [ "$TARGET_UBUNTU" == "xenial" ] || [ "$TARGET_UBUNTU" == "bionic" ] || [ "$TARGET_UBUNTU" == "stretch" ] || [ "$TARGET_UBUNTU" == "buster" ]; then
-  export QT_SELECT=qt5-$HOST_FARCH-$TARGET_FARCH\n\
-fi
+
 if [ "$TARGET_ARCH" = "i386" ]; then
   export CC=i686-linux-gnu-gcc\n\
   export CXX=i686-linux-gnu-g++\n\
@@ -777,7 +774,7 @@ ensure_lxd_subuid
 
 HOST_ARCH=`dpkg --print-architecture`
 TARGET_ARCH=amd64
-TARGET_UBUNTU=jammy
+TARGET_UBUNTU=noble
 NO_BUMP_CHANGELOG=0
 BUILD_SRCPKG=0
 
