@@ -77,7 +77,7 @@ display_help () {
     echo "  --no-deb              - Do not build Debian packages and uses rsync to deploy the build artifacts."
     echo "  --deploy-path         - When deploying with --no-deb (rsync), installation path for the build artifacts [defaults to /]."
     echo "  --no-changelog | -c   - Don't bump the changelog."
-    echo "  --add-repository | -r - Add repository. This is a string understood by apt-add-repository. Can be given multiple times."
+    echo "  --add-repository | -r - Add repository (apt.list content joined by _). Can be given multiple times."
     echo "  --remove-repository   - Remove a repository."
     echo "  --with-source | -s    - Include source package in build."
     echo "  --apt-proxy | -p      - Use an apt proxy."
@@ -356,14 +356,14 @@ source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
             REPO="${ADDITIONAL_REPOS[$((i-1))]}"
             REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
             echo "Adding repository: $REPO_UNESCAPED"
-            exec_container_root "apt-add-repository '$REPO_UNESCAPED'"
+            exec_container_root "echo '$REPO_UNESCAPED' > /etc/apt/sources.list.d/nymea.list"
         done
-        for i in $(seq 1 ${#REMOVE_REPOS[*]}); do
-            REPO="${REMOVE_REPOS[$((i-1))]}"
-            REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
-            echo "Removing repository: $REPO_UNESCAPED"
-            exec_container_root "apt-add-repository -r '$REPO_UNESCAPED'"
-        done
+        # for i in $(seq 1 ${#REMOVE_REPOS[*]}); do
+        #     REPO="${REMOVE_REPOS[$((i-1))]}"
+        #     REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
+        #     echo "Removing repository: $REPO_UNESCAPED"
+        #     exec_container_root "apt-add-repository -r '$REPO_UNESCAPED'"
+        # done
         exec_container_root "DEBIAN_FRONTENT=noninteractive apt-get --yes update"
     fi
 
