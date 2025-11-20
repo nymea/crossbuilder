@@ -14,11 +14,11 @@ display_help () {
     echo "Options:"
     echo "    --help, -h                  Display this help."
     echo "    --mount-ssh                 Mount ~/.ssh from host into the container"
-    echo "    --enterprise                Build using the enterprise version of Qt."
+    echo "    --qt6                       Build using Qt 6 container."
     echo "    --sdk=<version>             Build using the given android SDK version. It has to be installed in the image. Default is $SDK_VERSION."
-    echo "    --sign=, -s=<keystore>      sign it with the given keystore"
-    echo "    --cert-alias=, -c=<alias>   use the certificate alias for the keytore"
-    echo "    --keypass=, -k=<pass>       provide a password to open the keystore given with --sign"
+    echo "    --sign=, -s=<keystore>      Sign it with the given keystore"
+    echo "    --cert-alias=, -c=<alias>   Use the certificate alias for the keytore"
+    echo "    --keypass=, -k=<pass>       Provide a password to open the keystore given with --sign"
 }
 
 variables() {
@@ -37,9 +37,8 @@ variables() {
 
     PACKAGE=`basename "$PWD"`
 
-    if [ $ENTERPRISE -eq 1 ]; then
-        # Note: requires a local image containing Qt enterprise version
-        LXD_IMAGE_NAME=android-qt-enterprise-builder
+    if [ $USE_QT6 -eq 1 ]; then
+        LXD_IMAGE_NAME=android-qt6-builder
         LXD_IMAGE=$LXD_IMAGE_NAME
     else
         LXD_IMAGE_NAME=android-qt-builder
@@ -103,10 +102,10 @@ new_container() {
         lxc config device add $LXD_CONTAINER gradle_cache_dir_mount disk source=$HOME/.gradle/ path=$HOME/.gradle
     fi
 
-    if [ $ENTERPRISE -eq 1 ]; then
-        echo "Copy Qt license file /home/$USERNAME/.qt-license into container home directory..."
-        lxc file push /home/$USERNAME/.qt-license $LXD_CONTAINER/home/$USERNAME/
-    fi
+    # if [ $ENTERPRISE -eq 1 ]; then
+    #     echo "Copy Qt license file /home/$USERNAME/.qt-license into container home directory..."
+    #     lxc file push /home/$USERNAME/.qt-license $LXD_CONTAINER/home/$USERNAME/
+    # fi
 
     if [ $MOUNT_SSH -eq 1 ]; then
         if ! lxc config device get $LXD_CONTAINER ssh_dir_mount disk 2> /dev/null ; then
@@ -201,7 +200,7 @@ KEYSTORE_PATH=""
 KEYSTORE_CERT=""
 KEYSTORE_PASS=""
 MOUNT_SSH=0
-ENTERPRISE=0
+USE_QT6=0
 
 while [ "$1" != "" ]; do
     OPTION=`echo $1 | awk -F= '{print $1}'`
@@ -223,8 +222,8 @@ while [ "$1" != "" ]; do
             --cert-alias | -c )
                 KEYSTORE_CERT=$VALUE
             ;;
-            --enterprise )
-                ENTERPRISE=1
+            --qt6 )
+                USE_QT6=1
             ;;
             --keypass | -k )
                 KEYSTORE_PASS=$VALUE
