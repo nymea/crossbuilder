@@ -356,14 +356,14 @@ source <( dpkg-architecture --host-arch $TARGET_ARCH --print-set )
             REPO="${ADDITIONAL_REPOS[$((i-1))]}"
             REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
             echo "Adding repository: $REPO_UNESCAPED"
-            exec_container_root "echo '$REPO_UNESCAPED' > /etc/apt/sources.list.d/nymea.list"
+            exec_container_root "echo '$REPO_UNESCAPED' >> /etc/apt/sources.list.d/nymea.list"
         done
-        # for i in $(seq 1 ${#REMOVE_REPOS[*]}); do
-        #     REPO="${REMOVE_REPOS[$((i-1))]}"
-        #     REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
-        #     echo "Removing repository: $REPO_UNESCAPED"
-        #     exec_container_root "apt-add-repository -r '$REPO_UNESCAPED'"
-        # done
+        for i in $(seq 1 ${#REMOVE_REPOS[*]}); do
+            REPO="${REMOVE_REPOS[$((i-1))]}"
+            REPO_UNESCAPED=`echo $REPO | sed 's/_/ /g'`
+            echo "Removing repository: $REPO_UNESCAPED"
+            #exec_container_root "apt-add-repository -r '$REPO_UNESCAPED'"
+        done
         exec_container_root "DEBIAN_FRONTENT=noninteractive apt-get --yes update"
     fi
 

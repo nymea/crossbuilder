@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 PROGRAM_NAME=`basename $0`
-SDK_VERSION=35
+SDK_VERSION=36
 
 display_help () {
     echo "Usage: $PROGRAM_NAME [options] [command]"
@@ -61,7 +61,7 @@ new_container() {
     else
         echo "${POSITIVE_COLOR}Creating LXD container $LXD_CONTAINER using $LXD_IMAGE.${NC}"
         lxc remote --public=true --accept-certificate=true add nymea https://jenkins.nymea.io || true
-        lxc init $LXD_IMAGE $LXD_CONTAINER
+        lxc init nymea:$LXD_IMAGE $LXD_CONTAINER
 
         # Note: check the lxc version for lxc.id_map vs lxc.idmap
         LXCVERSION=$(lxc --version)
@@ -159,10 +159,10 @@ exec_container () {
 }
 
 build () {
-  if [ -e *.pro ]; then
+    if [ $USE_QT6 -eq 0 ]; then
     build_qmake
   else
-    build_npm
+    build_qmake6
   fi
 }
 
@@ -181,19 +181,98 @@ build_qmake () {
         echo "Sign using apksigner"
         exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; ls -l ; /opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner sign --ks /tmp/key.keystore --ks-pass pass:$KEYSTORE_PASS android-build-release-signed.apk"
         exec_container "cd $MOUNT_POINT/builddir/android-build/build/outputs/apk/release/ ; /opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner verify --verbose android-build-release-signed.apk"
-    else
+    else          
         exec_container "cd builddir; androiddeployqt --release --input $FILES --output $MOUNT_POINT/builddir/android-build --android-platform android-${SDK_VERSION} --jdk /usr/lib/jvm/java-11-openjdk-amd64 --gradle --aab --verbose"
     fi
 }
 
-build_npm () {
-    exec_container npm install
-    exec_container ionic cordova platform add android
-    exec_container npm run android:release -- --no-interactive
+build_qmake6 () {
+
+    APP_VERSION=$(exec_container "cat $SOURCE_PATH_CONTAINER/version.txt | head -n 1")
+    APP_REVISION=$(exec_container "cat $SOURCE_PATH_CONTAINER/version.txt | tail -n 1")
+    source $SOURCE_PATH_CONTAINER/config.pri
+
+    echo "App name: ${APPLICATION_NAME}"
+    echo "App version: ${APP_VERSION} (${APP_REVISION})"
+
+    declare -a TARGET_ABI_LIST=("armv7" "arm64_v8a" "x86" "x86_64")
+
+    for ABI in "${TARGET_ABI_LIST[@]}"; do
+        ANDROID_ABI=$ABI
+        echo "Start building android bundle for ${ANDROID_ABI}..."
+        QMAKE=/opt/Qt/6.8.3/android_${ANDROID_ABI}/bin/qmake
+
+        BUILDDIR=${MOUNT_POINT}/build
+        ANDROID_BUILDDIR=${BUILDDIR}/build-android-${ANDROID_ABI}
+        OUTPUTDIR=${BUILDDIR}/android-${ANDROID_ABI}
+        ARTIFACTS=${BUILDDIR}/android-artifacts
+
+        exec_container "mkdir -p ${ANDROID_BUILDDIR};"
+        exec_container "mkdir -p ${OUTPUTDIR};"
+        exec_container "mkdir -p ${ARTIFACTS};"
+
+        exec_container "cd ${ANDROID_BUILDDIR}; $QMAKE $MOUNT_POINT CONFIG+=release -spec android-clang $ADDITIONAL_ARGS; "\
+            "make qmake_all; make -j$(nproc)"
+
+        exec_container "cd ${ANDROID_BUILDDIR}; make INSTALL_ROOT=${OUTPUTDIR}/ install"
+
+        FILES=$(exec_container "cd ${ANDROID_BUILDDIR}; find ${ANDROID_BUILDDIR} -name *deployment-settings.json")
+
+        if [ "${KEYSTORE_PATH}" != "" ]; then
+            echo "Signing with: ${KEYSTORE_CERT} certificate from ${KEYSTORE_PATH}"
+            exec_container_root "if [ -f /tmp/key.keystore ]; then rm -f /tmp/key.keystore ; fi"
+            lxc file push ${KEYSTORE_PATH} $LXD_CONTAINER/tmp/key.keystore
+            
+            exec_container "cd ${ANDROID_BUILDDIR}; androiddeployqt " \
+                "--release " \
+                "--input ${FILES} " \
+                "--output ${OUTPUTDIR} " \
+                "--android-platform android-${SDK_VERSION} " \
+                "--jdk /usr/lib/jvm/java-21-openjdk-amd64 " \
+                "--jarsigner --sign /tmp/key.keystore ${KEYSTORE_CERT}" \
+                "--storepass ${KEYSTORE_PASS}"  \
+                "--gradle --aab --verbose"
+
+            exec_container "cp -rv ${OUTPUTDIR}/build/outputs/bundle/release/android-${ANDROID_ABI}-release.aab " \
+                "${ARTIFACTS}/android-${APP_VERSION}-${APP_REVISION}-${ANDROID_ABI}-release-signed.aab"
+
+            # Note: the jarsigner can only sign apk using V1 signatures. Since Android 7 at least V2 signature is required.
+            # https://source.android.com/docs/security/features/apksigning
+            echo "Sign using apksigner"
+
+            SIGNED_APK=${APPLICATION_NAME}-android-${ANDROID_ABI}-release-signed.apk
+
+            exec_container "cd ${OUTPUTDIR}/build/outputs/apk/release/ ; ls -l ; " \
+                "/opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner sign " \
+                "--ks /tmp/key.keystore " \
+                "--ks-pass pass:$KEYSTORE_PASS ${SIGNED_APK}"
+            
+            exec_container "cd ${OUTPUTDIR}/build/outputs/apk/release/ ; "\
+                "/opt/android/sdk/build-tools/${SDK_VERSION}.0.0/apksigner verify --verbose ${SIGNED_APK}"
+
+            exec_container "cp -rv ${OUTPUTDIR}/build/outputs/apk/release/${SIGNED_APK} " \
+                "${ARTIFACTS}/${APPLICATION_NAME}-android-${APP_VERSION}-${APP_REVISION}-${ANDROID_ABI}-release-signed.apk"
+
+        else
+            exec_container "cd ${ANDROID_BUILDDIR}; androiddeployqt " \
+                 "--release " \
+                 "--input ${FILES} " \
+                 "--output ${OUTPUTDIR} " \
+                 "--android-platform android-${SDK_VERSION} " \
+                 "--jdk /usr/lib/jvm/java-21-openjdk-amd64 " \
+                 "--gradle --aab --verbose"
+
+            exec_container "cp -rv ${OUTPUTDIR}/build/outputs/bundle/release/android-${ANDROID_ABI}-release.aab " \
+                "${ARTIFACTS}/${APPLICATION_NAME}-android-${APP_VERSION}-${APP_REVISION}-${ANDROID_ABI}-release.aab"
+
+         fi
+    done
+
+    exec_container "ls -l ${ARTIFACTS}"
 }
 
 clean () {
-    exec_container "rm builddir -rf"
+    exec_container "rm build -rf"
 }
 
 KEYSTORE_PATH=""
